@@ -1,0 +1,14 @@
+
+*.jpg
+*.png
+/.idea
+gen.py
+cvse_新.*
+!cvse_新.py
+remove*.txt
+*_*/
+*.zip
+!remove.txt
+!/C_60
+!/C_61
+!/主榜工具/底板/*.png
