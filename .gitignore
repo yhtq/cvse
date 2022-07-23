@@ -7,6 +7,7 @@ cvse_新.*
 !cvse_新.py
 remove*.txt
 *_*/
+!/side_cover
 *.zip
 !remove.txt
 !/C_60
