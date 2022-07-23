@@ -484,14 +484,16 @@ with open(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv', 'w', newline=
 place = 1
 new_place = 1
 pres_list.sort(reverse=True)
-for i in pres_list:
-    place, new_place = i.inclusion(place, new_place)
-    i.write_to_csv(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv', header)
-    if Pres_data.remove_flag:
-        if str(i['aid']) not in remove_list:
+with open(f'{_default_dir}/remove_{_index}.txt', 'w+') as remove_pres:
+    for i in pres_list:
+        place, new_place = i.inclusion(place, new_place)
+        i.write_to_csv(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv', header)
+        if Pres_data.remove_flag:
             with open('remove.txt', 'a+') as remove_f:
                 remove_f.write(str(i['aid']) + '\n')
-        Pres_data.remove_flag = 0
+            Pres_data.remove_flag = 0
+        if i.is_new() and i['收录'] == 0:
+            remove_pres.write(str(i['aid']) + '\n')
 pres_list.sort(reverse=True)
 pk_aid = int(_input("请输入pick up视频的aid，一次输入一个，输入0退出", lambda x: x.isdigit()))
 if pk_aid != 0:
