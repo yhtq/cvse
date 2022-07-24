@@ -173,8 +173,6 @@ class Data:
             self.dict_['收录'] = int(self.dict_['收录'])
         if '排名' in self.dict_.keys():
             self.dict_['名次'] = self.dict_['排名']
-        if '投稿时间' in self.dict_.keys() and isinstance(self.dict_['投稿时间'], datetime.datetime):
-            self['投稿时间'] = self.dict_['投稿时间'].strftime('%Y-%m-%d %H:%M')
         if '投稿时间' in self.dict_.keys() and isinstance(self.dict_['投稿时间'], str):
             try:
                 self.pub_time_time_struct = time.strptime(self.dict_['投稿时间'], '%Y/%m/%d %H:%M:%S')
@@ -190,7 +188,12 @@ class Data:
             self.pub_time_time_struct = time.strptime('1970/01/01 00:00:00', '%Y/%m/%d %H:%M:%S')
         if '投稿时间' in self.dict_.keys():
             self.pub_time_datetime = datetime.datetime.fromtimestamp(time.mktime(self.pub_time_time_struct))
-            self.dict_['投稿时间'] = time.strftime('%Y/%m/%d %H:%M:%S', self.pub_time_time_struct)
+            if isinstance(self.dict_['投稿时间'], datetime.datetime):
+                self.pub_time_datetime = self['搜稿时间']
+                self['投稿时间'] = self.dict_['投稿时间'].strftime('%Y-%m-%d %H:%M')
+                self.pub_time_time_struct = time.strptime(self.dict_['投稿时间'], '%Y-%m-%d %H:%M')
+            else:
+                self.dict_['投稿时间'] = time.strftime('%Y/%m/%d %H:%M', self.pub_time_time_struct)
         for key in header + self.file_header:
             if key not in self.dict_.keys() or self.dict_[key] is None:
                 self.dict_[key] = ''
