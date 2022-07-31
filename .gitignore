@@ -3,8 +3,6 @@
 *.png
 /.idea
 gen.py
-cvse_新.*
-!cvse_新.py
 remove*.txt
 *_*/
 !/side_cover
