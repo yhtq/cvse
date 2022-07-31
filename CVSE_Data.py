@@ -287,7 +287,7 @@ class Data:
                                             end_color='FFFF00')
         return font, pattern, border
 
-    def add_info(self, other, key=None):
+    def add_info(self, other, key=None):    # 添加信息，只会添加为没有或为空值的键值，不改变已有的键值
         if not self.is_same_song(other):
             print('aid不一致,不能合并')
             input()

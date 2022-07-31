@@ -19,8 +19,22 @@ header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '
 engine = {1: 'Sharpkey', 2: 'DeepVocal', 3: 'MUTA', 4: '袅袅虚拟歌手', 5: 'AISingers', 6: 'X Studio', 7: '跨引擎'}
 flag = 0
 rank_trans = {0: "C", 1: "SV", 2: "U"}
-max_main = {0: 20, 1: 25}
-max_side = {0: 80, 1: 105}
+#max_main = {0: 20, 1: 25}
+#max_side = {0: 80, 1: 105}
+#new_rank_number: dict[int, int] = {0: 10, 1: 8}
+try:
+    with open ("config_inclusion.ini", 'r', encoding='utf-8') as f:
+        config = json.load(f)
+        with_match: int = int(config['with_match'])
+        with_staff: int = int(config['with_staff'])
+        max_main: dict[int, int] = {int(i): j for i, j in config['max_main'].items()}
+        max_side: dict[int, int] = {int(i): j for i, j in config['max_side'].items()}
+        new_rank_number: dict[int, int] = {int(i): j for i, j in config['new_rank_number'].items()}
+except Exception as e:
+    print(e)
+    print("配置错误")
+    input()
+    exit()
 if os.path.exists("remove.txt"):
     with open("remove.txt", 'r+') as f:
         remove_list = f.read().split('\n')
@@ -124,7 +138,6 @@ def download_face(mid, img_name):
 
 class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
     xlsx_order: list[str] = [0]  # xlsx第i列列索引，从1开始
-    new_rank_number: dict[int, int] = {0: 10, 1: 8}
     flag: int = 0  # 是否完成收录
     index: int = 0  # 期数
     rank: int = -1
@@ -186,6 +199,9 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         if '投稿时间' in self.dict_.keys() and self.dict_['投稿时间'] != '':
             if Pres_data.end_time > self.pub_time_datetime > Pres_data.start_time:
                 self.dict_['新曲'] = '新曲'
+            elif self.pub_time_datetime > Pres_data.end_time:
+                self.dict_['新曲'] = ''
+                self.dict_['收录'] = 0
             else:
                 self.dict_['新曲'] = ''
                 self.dict_['收录'] = 1
@@ -195,6 +211,8 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             del self.dict_[0]
 
     def get_staff(self, with_open_browser: bool = False):
+        if not with_staff:
+            return
         if self['staff'] != '':
             return
         if with_open_browser:
@@ -300,19 +318,23 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             self['主榜'] = '副榜截止'
         self['名次'] = place if self['HOT'] != 'HOT' else 'HOT'
         self['新曲排名'] = new_place if self['新曲'] != '' else 0
-        if self['新曲'] != '' and place > Pres_data.max_count_side and new_place <= Pres_data.new_rank_number[
+        if self.is_new() and place > Pres_data.max_count_main and new_place <= new_rank_number[
             Pres_data.rank]:
             self['新曲'] = '新曲榜'
+            self.get_staff(not browser_flag)
+            if self['原创'] == '其他':
+                self['原创'] = ''
         if place > Pres_data.max_count_main and self['原创'] == '原创':
             self['原创'] = '榜外原创'
-        if place <= Pres_data.max_count_main:
-            download_cover(str(av), 'cover/AV' + str(av) + '.jpg')
-            download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg')
-        if place <= Pres_data.max_count_side or self.is_new():
-            download_cover(str(av), 'side_cover/AV' + str(av) + '.jpg')
-            download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg')
-        if new_place <= Pres_data.new_rank_number[Pres_data.rank] and self.is_new():
-            download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg')
+        if with_match:
+            if place <= Pres_data.max_count_main:
+                download_cover(str(av), 'cover/AV' + str(av) + '.jpg')
+                download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg')
+            if place <= Pres_data.max_count_side or self.is_new():
+                download_cover(str(av), 'side_cover/AV' + str(av) + '.jpg')
+                download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg')
+            if new_place <= new_rank_number[Pres_data.rank] and self.is_new():
+                download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg')
         if self['新曲'] != '':
             return place + 1, new_place + 1
         elif hot_flag:
@@ -471,10 +493,11 @@ for i in ['cover', 'side_cover']:
     if not os.path.exists(i):
         os.mkdir(i)
 pres_list, _rank, _index, _default_dir = init()
-prev_list = read_last(_rank, int(_index) - 1)
-print('开始与上期数据进行匹配')
-match.match(_rank, _index, Pres_data.start_time, pres_list, prev_list)
-print('匹配完成')
+if with_match:
+    prev_list = read_last(_rank, int(_index) - 1)
+    print('开始与上期数据进行匹配')
+    match.match(_rank, _index, Pres_data.start_time, pres_list, prev_list)
+    print('匹配完成')
 if Pres_data.flag != 1:
     load_record(pres_list, f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv')
     load_record(pres_list, f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv')
@@ -484,9 +507,12 @@ with open(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv', 'w', newline=
 place = 1
 new_place = 1
 pres_list.sort(reverse=True)
+new_rank_list: list[Pres_data] = []
 with open(f'{_default_dir}/remove_{_index}.txt', 'w+') as remove_pres:
     for i in pres_list:
         place, new_place = i.inclusion(place, new_place)
+        if i['新曲'] == '新曲榜':
+            new_rank_list.append(i)
         i.write_to_csv(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv', header)
         if Pres_data.remove_flag:
             with open('remove.txt', 'a+') as remove_f:
@@ -511,13 +537,15 @@ outfile_header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿�
 with open(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv', 'w', newline='', encoding='utf-8-sig') as f:
     f = csv.DictWriter(f, fieldnames=header)
     f.writeheader()
-with open(f'{_default_dir}/outfile.csv', 'w', newline='', encoding='utf-8-sig') as f:
-    f = csv.DictWriter(f, fieldnames=outfile_header)
-    f.writeheader()
+if with_match:
+    with open(f'{_default_dir}/outfile.csv', 'w', newline='', encoding='utf-8-sig') as f:
+        f = csv.DictWriter(f, fieldnames=outfile_header)
+        f.writeheader()
 for i in pres_list:
     i.write_to_csv(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv', header)
-    if str(i['收录']) != '0' and i['HOT'] != 'HOT':
-        i.write_to_csv(f'{_default_dir}/outfile.csv', outfile_header)
+    if with_match:
+        if str(i['收录']) != '0' and i['HOT'] != 'HOT':
+            i.write_to_csv(f'{_default_dir}/outfile.csv', outfile_header)
 
 for idx, i in enumerate(pres_list):
     write_xlsx(i)
@@ -528,17 +556,23 @@ for idx, i in enumerate(pres_list):
 save(f'{_default_dir}/{rank_trans[_rank]}_{_index}_含不收录曲.xlsx')
 save_(f'{_default_dir}/{rank_trans[_rank]}_{_index}.xlsx')
 print(f'已保存为{_default_dir}/{rank_trans[_rank]}_{_index}.xlsx')
-write_long_term_xlsx, save = Pres_data.write_long_term_data_wrapper()
-i = iter(pres_list)
-while write_long_term_xlsx(i.__next__()):
-    pass
-save(f'data_{rank_trans[Pres_data.rank]}.xlsx')
-pres_rank_data = Rank_data(pres_list)
-prev_rank_data = Rank_data(prev_list)
-rank_information = to_str_with_delta(pres_rank_data, prev_rank_data)
-print(rank_information)
-with open(f'{_default_dir}/{rank_trans[_rank]}_{_index}_数据信息.txt', 'w') as f:
-    f.write(rank_information)
-history(_rank, _index)
+if new_rank_list:
+    write_new_xlsx, save_new = CVSE_Data.Data.write_to_xlsx_wrapper()
+    for i in new_rank_list:
+        write_new_xlsx(i)
+    save_new(f'{_default_dir}/{rank_trans[_rank]}_{_index}_新曲榜.xlsx')
+if with_match:
+    write_long_term_xlsx, save = Pres_data.write_long_term_data_wrapper()
+    i = iter(pres_list)
+    while write_long_term_xlsx(i.__next__()):
+        pass
+    save(f'data_{rank_trans[Pres_data.rank]}.xlsx')
+    pres_rank_data = Rank_data(pres_list)
+    prev_rank_data = Rank_data(prev_list)
+    rank_information = to_str_with_delta(pres_rank_data, prev_rank_data)
+    print(rank_information)
+    with open(f'{_default_dir}/{rank_trans[_rank]}_{_index}_数据信息.txt', 'w') as f:
+        f.write(rank_information)
+    history(_rank, _index)
 
 input('按任意键退出')

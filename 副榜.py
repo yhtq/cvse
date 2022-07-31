@@ -168,8 +168,6 @@ def make_image_single(row:list)->Image.Image:
         print('缺失' + row[header['名次']] + '位投稿UP主头像！')
     except OSError:
         print(row[header['名次']] + '位投稿UP主头像损坏！')
-    except:
-        print(row[header['名次']])
     #长期,若有
     if row[header['长期']] != '':
         bg.alpha_composite(img_long,(config['pic_x'],config['pic_y']))
@@ -226,11 +224,15 @@ for row in out_list:
     except ValueError:
         pass
     try:
-        row[header['Last Pt']] = '{:,}'.format(int(row[header['Last Pt']]))
+        row[header['Last Pt']] = '{:,.0f}'.format(float(row[header['Last Pt']]))
+
     except ValueError:
         pass
     while len(row) <= header['Nrank']: row.append('')
-    if row[header['长期']] != '': row[header['长期']] = row[header['长期']].zfill(2) + r' / 10'
+    if row[header['长期']] != '':
+        if mode == 1: row[header['长期']] = row[header['长期']].zfill(2) + r' / 10'
+        elif mode == 2: row[header['长期']] = row[header['长期']] + r' / 5'
+        elif mode == 3: row[header['长期']] = row[header['长期']].zfill(2) + r' / 10'
     if row[header['Nrank']] != '': row[header['Nrank']] = row[header['Nrank']].zfill(3).replace('', ' ')[1:-1]
 
 
@@ -242,7 +244,6 @@ list_image_single = []
 for i in range(num_start+num_HOT-1,num_end+num_HOT):
     row = out_list[i]
     list_image_single += [make_image_single(row)]
-    #print("正常:"+str(i)+"号第"+str(row[header['名次']])+"位")
 
 for i in range(0,len(list_image_single),3):
     img = bg_public.copy()
