@@ -13,7 +13,7 @@ with open('config_match.ini') as config_file:
     config = json.load(config_file)
 
 
-# 判断长期，鸣谢：JackBlock
+# 判断长期，作者：补给舰旭东丸，鸣谢：JackBlock
 # yhtq 修改
 
 

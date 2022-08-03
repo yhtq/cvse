@@ -11,6 +11,8 @@ import openpyxl as op
 import collect_staff
 import CVSE_Data
 import match
+from downloader import *
+from 副榜_包装 import side_generate, move_file
 
 DEBUG = False
 header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '时长', '分P数', '播放增量', '弹幕增量', '评论增量', '收藏增量', '硬币增量', '分享增量',
@@ -19,17 +21,19 @@ header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '
 engine = {1: 'Sharpkey', 2: 'DeepVocal', 3: 'MUTA', 4: '袅袅虚拟歌手', 5: 'AISingers', 6: 'X Studio', 7: '跨引擎'}
 flag = 0
 rank_trans = {0: "C", 1: "SV", 2: "U"}
-#max_main = {0: 20, 1: 25}
-#max_side = {0: 80, 1: 105}
-#new_rank_number: dict[int, int] = {0: 10, 1: 8}
+# max_main = {0: 20, 1: 25}
+# max_side = {0: 80, 1: 105}
+# new_rank_number: dict[int, int] = {0: 10, 1: 8}
 try:
-    with open ("config_inclusion.ini", 'r', encoding='utf-8') as f:
+    with open("config_inclusion.ini", 'r', encoding='utf-8') as f:
         config = json.load(f)
         with_match: int = int(config['with_match'])
         with_staff: int = int(config['with_staff'])
+        with_template_generate: int = int(config['with_template_generate'])
         max_main: dict[int, int] = {int(i): j for i, j in config['max_main'].items()}
         max_side: dict[int, int] = {int(i): j for i, j in config['max_side'].items()}
         new_rank_number: dict[int, int] = {int(i): j for i, j in config['new_rank_number'].items()}
+        min_duration: dict[int, int] = {int(i): j for i, j in config['min_duration'].items()}
 except Exception as e:
     print(e)
     print("配置错误")
@@ -42,27 +46,12 @@ else:
     remove_list = []
 
 
-def _input(text: str, valid):
-    result = input(text)
-    while not valid(result):
+def _input(text: str, valid, default=None):
+    result = input(text) or default
+    while result is None or not valid(result):
         print('输入格式错误')
         result = input(text)
     return result
-
-
-def request(url: str, headers: dict[str, str] = None):
-    try:
-        if headers is None:
-            res = requests.get(url, timeout=5)
-        else:
-            res = requests.get(url, headers=headers, timeout=5)
-        res.raise_for_status()
-    except requests.RequestException as e:
-        print(e)
-        time.sleep(1)
-        print('尝试重新连接')
-        return request(url)
-    return res
 
 
 def calculate_time(_rank: int, _index: int) -> (datetime.datetime, datetime.datetime):
@@ -82,58 +71,46 @@ def calculate_time(_rank: int, _index: int) -> (datetime.datetime, datetime.date
 
 def calculate_index(_rank: int, time_start: datetime.datetime) -> int:
     if _rank == 0:
-        return dateutil.relativedelta.relativedelta(dt1=time_start, dt2=datetime.datetime.strptime("2021/04/28 3:00", "%Y/%m/%d %H:%M")).months + 48
+        return dateutil.relativedelta.relativedelta(dt1=time_start, dt2=datetime.datetime.strptime("2021/04/28 3:00",
+                                                                                                   "%Y/%m/%d %H:%M")).months + 48
     if _rank == 1:
-        return dateutil.relativedelta.relativedelta(dt1=time_start, dt2=datetime.datetime.strptime("2021/11/26 3:00", "%Y/%m/%d %H:%M")).weeks + 132
+        return dateutil.relativedelta.relativedelta(dt1=time_start, dt2=datetime.datetime.strptime("2021/11/26 3:00",
+                                                                                                   "%Y/%m/%d %H:%M")).weeks + 132
 
 
-def download_decorator(func):
-    def download(aid_mid: str, img_name: str):
-        if os.path.exists(img_name):
-            return
-        if aid_mid == '':
-            print(img_name + ' 为空')
-            return
-        try:
-            func(aid_mid, img_name)
-        except:
-            print(img_name + '下载失败')
+def tag_info_decorator(func):
+    # 实现对象临时存储简介和tag信息，若为空则下载相应信息，函数执行完成后复原，被装饰的函数可以直接调用正确（非空）的desc和tag，同时保证调用前后不会改变存储状态
+    def wrapper(self, *args, **kwargs):
+        init_tag = self.tag
+        if not self.tag:
+            res: dict = json.loads(
+                request('https://api.bilibili.com/x/web-interface/view/detail/tag?aid=' + str(self['aid'])).text)
+            self.tag = [i["tag_name"] for i in res['data']]
+        result = func(self, *args, **kwargs)
+        self.tag = init_tag
+        return result
 
-    return download
-
-
-@download_decorator
-def download_cover(aid, img_name):
-    res = request('https://api.bilibili.com/x/web-interface/search/all?keyword=' + str(aid))
-    res = json.loads(res.text)
-    cover_flag = 0
-    address = res['data']['result']['video'][0]['pic']
-    pic = request('http:' + str(address))
-    with open(img_name, 'wb+') as file:
-        file.write(pic.content)
-        file.flush()
-        file.close()
-    time.sleep(0.5)
+    return wrapper
 
 
-@download_decorator
-def download_face(mid, img_name):
-    if mid == '':
-        print('没有找到mid')
-        return
-    headers: dict[str, str] = {
-        'Host': 'api.bilibili.com',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0'
-    }
-    res = request('https://api.bilibili.com/x/space/acc/info?mid=' + str(mid), headers=headers)
-    res = json.loads(res.text)
-    address = res['data']['face']
-    pic = request(str(address))
-    with open(img_name, 'wb+') as file:
-        file.write(pic.content)
-        file.flush()
-        file.close()
-    time.sleep(0.5)
+def desc_title_info_decorator(func):
+    # 实现对象临时存储简介和tag信息，若为空则下载相应信息，函数执行完成后复原，被装饰的函数可以直接调用正确（非空）的desc和tag，同时保证调用前后不会改变存储状态
+    def wrapper(self, *args, **kwargs):
+        init_desc = self.desc
+        init_title = self.title
+        if not self.desc:
+            res_data = \
+                json.loads(request('https://api.bilibili.com/x/web-interface/view?aid=' + str(self['aid'])).text)[
+                    'data']
+            if 'data' in res_data:
+                self.desc = res_data['desc']
+                self.title = res_data['title']
+        result = func(self, *args, **kwargs)
+        self.title = init_title
+        self.desc = init_desc
+        return result
+
+    return wrapper
 
 
 class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
@@ -145,6 +122,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
     end_time: datetime.datetime = None
     max_count_main: int = 0  # 主榜最大曲数
     max_count_side: int = 0  # 副榜最大曲数
+    min_duration: int = 0   # 最短时长，单位为秒
     remove_flag = 0
 
     @staticmethod
@@ -192,6 +170,10 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
 
     def __init__(self, data, data_type: str, file_header: list = None):
         super(Pres_data, self).__init__(data, data_type, file_header)
+        self.desc: str = ""
+        self.tag: list[str] = []
+        self.title: str = ''
+        self['上次'] = '——'
         if flag and self.dict_['收录'] == '':
             self.dict_['收录'] = 1
         if (not flag) and self.dict_['收录'] == '':
@@ -210,6 +192,19 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         if 0 in self.dict_.keys():
             del self.dict_[0]
 
+    def duration_check(self) -> int:
+        # 检查时长, -1表示已删稿
+        res2 = request('https://api.bilibili.com/x/player/pagelist?aid=' + self['aid'])
+        res2 = json.loads(res2.text)
+        if not "data" in res2:
+            return -1
+        flag = 0
+        for i in res2["data"]:
+            if int(i.get("duration")) >= Pres_data.min_duration:
+                flag = 1
+                break
+        return flag
+    @desc_title_info_decorator
     def get_staff(self, with_open_browser: bool = False):
         if not with_staff:
             return
@@ -222,7 +217,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         if self['引擎'] == '':
             if Pres_data.rank == 0:
                 self['引擎'] = _input("引擎为：1=SK 2=DV 3=Muta 4=袅袅 5=AiSinger 6=Xstudio 7=跨引擎\n",
-                            lambda x: x.isdigit() and int(x) in list(range(1, 8)))
+                                    lambda x: x.isdigit() and int(x) in list(range(1, 8)))
                 self['引擎'] = engine[int(self['引擎'])]
                 _staff += f"{self['引擎']}  |  "
             else:
@@ -240,9 +235,10 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         if self['原创'] == '其他' or self['原创'] == '':
             ori_work = input('原作:')
             _staff += '原作:' + ori_work + '  |  '
-        res2 = request('https://api.bilibili.com/x/web-interface/view?aid=' + str(self['aid']))
-        res2 = json.loads(res2.text)
-        staff = collect_staff.Staff(res2['data']['desc'], 1).staff_dict_degeneracy_str
+        # res2 = request('https://api.bilibili.com/x/web-interface/view?aid=' + str(self['aid']))
+        # res2 = json.loads(res2.text)
+        # staff = collect_staff.Staff(res2['data']['desc'], 1).staff_dict_degeneracy_str
+        staff = collect_staff.Staff(self.desc, 1).staff_dict_degeneracy_str
         confirm = 'n'
         new_staff = ''
         while confirm == 'n':
@@ -252,32 +248,41 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         self['staff'] = _staff
 
     def inclusion(self, place: int, new_place: int):  # 收录, 参数分别为此曲排名和此曲作为新曲的排名, 返回值为下一位的排名和作为新曲的排名
-        res2 = 0
-        if self.is_new():
-            self['上次'] = 'NEW'
-        hot_flag = False
-        browser_flag = 0
-        av = self['aid']
-        if DEBUG:
-            self['收录'] = 1
-            self['staff'] = '23132312'
-        if self['收录'] == '':
-            res2 = request('https://api.bilibili.com/x/web-interface/view?aid=' + str(av))
-            res2 = json.loads(res2.text)
-            if "data" not in res2:
-                self['已删稿'] = 1
-                self['收录'] = 0
-                Pres_data.remove_flag = 1
-                return place, new_place
-            webbrowser.open("https://www.bilibili.com/video/av" + str(av))
-            browser_flag = 1
-            inclusion = _input("是否收录 y/n\n", lambda x: x in ['y', 'n'])
-            if inclusion == 'n':
-                self['收录'] = 0
-                remove_list.append(self['aid'])
-                Pres_data.remove_flag = 1
-                return place, new_place
-            self['收录'] = 1
+        def staff_info_confirm(browser_flag):
+            nonlocal self, place, new_place
+            if place <= Pres_data.max_count_main and self['staff'] == '':
+                if with_staff:
+                    self.get_staff(not browser_flag)
+                    if self['原创'] == '其他':
+                        self['原创'] = ''
+            if self.is_new() and place > Pres_data.max_count_main and new_place <= new_rank_number[
+                Pres_data.rank]:
+                self['新曲'] = '新曲榜'
+                if with_staff:
+                    self.get_staff(not browser_flag)
+                    if self['原创'] == '其他':
+                        self['原创'] = ''
+            if place > Pres_data.max_count_main and self['原创'] == '原创':
+                self['原创'] = '榜外原创'
+
+        def rank_info_confirm():
+            nonlocal self, place, new_place
+            if place == Pres_data.max_count_main and self['HOT'] != 'HOT' and self['长期入榜及期数'] == '':
+                self['主榜'] = '主榜截止'
+            if place == Pres_data.max_count_side:
+                self['主榜'] = '副榜截止'
+            self['名次'] = place if self['HOT'] != 'HOT' else 'HOT'
+            self['新曲排名'] = new_place if self['新曲'] != '' else 0
+
+        #@tag_info_decorator
+        #@desc_title_info_decorator
+        # 本来设想通过tag和简介提取一些引擎关键词，但是因为网速问题可能体验不太好略显鸡肋，待定
+        def info_input(self: Pres_data):
+            # 对于新曲需要标题,简介和tag信息用于更新引擎原创及staff，这里把所有需要的部分包装起来了
+            nonlocal place, new_place
+            # print(self.title)
+            # print(self.desc)
+            # print(self.tag)
             if Pres_data.rank == 0:
                 #  国产榜
                 self['引擎'] = _input("引擎为：1=SK 2=DV 3=Muta 4=袅袅 5=AiSinger 6=Xstudio 7=跨引擎\n",
@@ -292,6 +297,39 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
                 self['原创'] = '其他'
             if ori == '2':
                 self['未授权搬运'] = '未授权搬运'
+            rank_info_confirm()
+            staff_info_confirm(browser_flag=True)
+
+        res2 = 0
+        if self.is_new():
+            self['上次'] = 'NEW'
+        hot_flag = False
+        browser_flag = 0  # 是否已打开浏览器
+        av = self['aid']
+        if DEBUG:
+            self['收录'] = 1
+            self['staff'] = '23132312'
+        if self['收录'] == '':
+            res: int = self.duration_check()
+            if res == -1:
+                self['已删稿'] = 1
+                self['收录'] = 0
+                Pres_data.remove_flag = 1
+                return place, new_place
+            if res == 0:
+                self['收录'] = 0
+                Pres_data.remove_flag = 1
+                return place, new_place
+            webbrowser.open("https://www.bilibili.com/video/av" + str(av))
+            browser_flag = 1
+            inclusion = _input("是否收录 y/n，默认为y\n", lambda x: x in ['y', 'n'], 'y')
+            if inclusion == 'n':
+                self['收录'] = 0
+                remove_list.append(self['aid'])
+                Pres_data.remove_flag = 1
+                return place, new_place
+            self['收录'] = 1
+            info_input(self)  # 这里已经包含了下面的rank_info_confirm和staff_info_confirm两个方法，这么包装只是为了保证不会把简介和tag信息请求两次
         elif self['收录'] == 1:
             if self['HOT'] == '两次前三' and place <= 3:
                 self['HOT'] = 'HOT'
@@ -303,29 +341,13 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             elif place <= Pres_data.max_count_main and self['长期入榜及期数'] != '':
                 Pres_data.max_count_main += 1
                 Pres_data.max_count_side += 1
+            rank_info_confirm()
+            staff_info_confirm(browser_flag=browser_flag)
         elif self['收录'] == 0:
             Pres_data.remove_flag = 1
             return place, new_place
         else:
             raise ValueError
-        if place <= Pres_data.max_count_main and self['staff'] == '':
-            self.get_staff(not browser_flag)
-            if self['原创'] == '其他':
-                self['原创'] = ''
-        if place == Pres_data.max_count_main and self['HOT'] != 'HOT' and self['长期入榜及期数'] == '':
-            self['主榜'] = '主榜截止'
-        if place == Pres_data.max_count_side:
-            self['主榜'] = '副榜截止'
-        self['名次'] = place if self['HOT'] != 'HOT' else 'HOT'
-        self['新曲排名'] = new_place if self['新曲'] != '' else 0
-        if self.is_new() and place > Pres_data.max_count_main and new_place <= new_rank_number[
-            Pres_data.rank]:
-            self['新曲'] = '新曲榜'
-            self.get_staff(not browser_flag)
-            if self['原创'] == '其他':
-                self['原创'] = ''
-        if place > Pres_data.max_count_main and self['原创'] == '原创':
-            self['原创'] = '榜外原创'
         if with_match:
             if place <= Pres_data.max_count_main:
                 download_cover(str(av), 'cover/AV' + str(av) + '.jpg')
@@ -404,6 +426,7 @@ def init() -> tuple[list[Pres_data], int, int, str]:
     Pres_data.rank = rank
     Pres_data.max_count_main = max_main[rank]
     Pres_data.max_count_side = max_side[rank]
+    Pres_data.min_duration = min_duration[rank]
     index = _input("请输入待处理排行榜期数，如 133 50\n", lambda x: x.isdigit())
     while not index.isdigit():
         print('输入的不是数字')
@@ -412,17 +435,26 @@ def init() -> tuple[list[Pres_data], int, int, str]:
     Pres_data.index = index
     Pres_data.start_time, Pres_data.end_time = calculate_time(int(rank), int(index))
     default_dir = f'{rank_trans[rank]}_{index}'
+    text: str = f'请输入待处理文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n输入1自动下载原始数据文件或读取已下载的原始数据文件'
     if os.path.exists(f'{default_dir}/{rank_trans[rank]}_{index}_save_backup.csv'):
+
         file = input(f'请输入待处理文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索, '
                      f'默认为{rank_trans[rank]}_{index}_save_backup.csv\n') or f'{rank_trans[rank]}_{index}_save_backup.csv'
     else:
-        file = input(f'请输入待处理文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n')
+        file = input(text)
     while not os.path.exists(file):
+        if file == '1':
+            if not os.path.exists(default_dir):
+                os.mkdir(default_dir)
+            status: int = download_pres_data(Pres_data.end_time, rank, index, default_dir)
+            if status:
+                file = f'{default_dir}/{index}.csv'
+                break
         if os.path.exists(f'{default_dir}/' + file):
             file = f'{default_dir}/' + file
             break
         print('文件不存在')
-        file = input(f'请输入待处理文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n')
+        file = input(text)
     flag = _input('待处理文件是否已经完成收录？y/n\n', lambda x: x in ['y', 'n'])
     if flag == 'y':
         flag = 1
@@ -433,14 +465,24 @@ def init() -> tuple[list[Pres_data], int, int, str]:
 
 
 def read_last(rank: int, index: int):
+    # index是上一期的序号
     default_dir = f'{rank_trans[rank]}_{index}'
     if os.path.exists(f'{default_dir}/{rank_trans[rank]}_{index}_save_backup.csv'):
         file = input(
             f'请输入上期排行榜的文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索'
             f'默认为{rank_trans[rank]}_{index}_save_backup.csv\n') or f'{rank_trans[rank]}_{index}_save_backup.csv'
     else:
-        file = input(f'请输入上期排行榜的文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n')
+        text: str = f'请输入上期排行榜的文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n' + f'输入1自动下载往期数据文件或读取已下载的数据文件 '
+        file: str = input(text)
     while not os.path.exists(file):
+        if file == '1':
+            if not os.path.exists(default_dir):
+                os.mkdir(default_dir)
+            _, prev_end_time = calculate_time(rank, index)
+            status: int = download_history_data(prev_end_time, rank, index, default_dir)
+            if status:
+                file = f'{default_dir}/{index}.xlsx'
+                break
         if os.path.exists(f'{default_dir}/' + file):
             file = f'{default_dir}/' + file
             break
@@ -460,22 +502,29 @@ def load_record(_pres_list: list[CVSE_Data.Data], file_name: str):
 
 
 def history(rank: int, index: int):
-    default_dir = f'{rank_trans[rank]}_{index}'
-    file = input(f'请输入历史回顾当期数据的文件名，如 41-2010.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索（或者输入0跳过）\n')
+    # index是当前期的序号
+    default_dir: str = f'{rank_trans[rank]}_{index}'
+    his_index: int = calculate_index(rank, Pres_data.start_time - dateutil.relativedelta.relativedelta(years=1))
+    text: str = f'请输入历史回顾当期（{his_index}期）数据的文件名，如 41-2010.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n输入1自动下载历史数据文件或读取已下载的数据文件，输入0跳过\n'
+    file: str = input(text)
     while not os.path.exists(file):
         if file == '0':
             return
+        if file == '1':
+            status: int = download_history_data(Pres_data.end_time - dateutil.relativedelta.relativedelta(years=1), Pres_data.rank, his_index, default_dir)
+            if status:
+                file = f'{default_dir}/{his_index}.xlsx'
+                break
         if os.path.exists(f'{default_dir}/' + file):
             file = f'{default_dir}/' + file
             break
         print('文件不存在')
-        file = input(f'请输入历史回顾当期数据的文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n')
+        file = input(text)
     his_data = CVSE_Data.read(file, CVSE_Data.Data, 5)
     write_xlsx, save = CVSE_Data.Data.write_to_xlsx_wrapper(header='history')
-    his_index = calculate_index(rank, Pres_data.start_time - dateutil.relativedelta.relativedelta(years=1))
     for i in his_data:
         write_xlsx(i)
-    his_cover_file = f"cover/{his_index}.jpg"
+    his_cover_file = f"cover/history.jpg"
     if not os.path.exists(his_cover_file):
         his_bv = input(f"请输入历史回顾排行榜(第{his_index})期的aid/bvid")
         download_cover(his_bv, his_cover_file)
@@ -537,16 +586,15 @@ outfile_header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿�
 with open(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv', 'w', newline='', encoding='utf-8-sig') as f:
     f = csv.DictWriter(f, fieldnames=header)
     f.writeheader()
-if with_match:
-    with open(f'{_default_dir}/outfile.csv', 'w', newline='', encoding='utf-8-sig') as f:
+if with_template_generate:
+    with open(f'outfile.csv', 'w', newline='', encoding='utf-8-sig') as f:
         f = csv.DictWriter(f, fieldnames=outfile_header)
         f.writeheader()
 for i in pres_list:
     i.write_to_csv(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv', header)
-    if with_match:
+    if with_template_generate:
         if str(i['收录']) != '0' and i['HOT'] != 'HOT':
-            i.write_to_csv(f'{_default_dir}/outfile.csv', outfile_header)
-
+            i.write_to_csv(f'outfile.csv', outfile_header)
 for idx, i in enumerate(pres_list):
     write_xlsx(i)
     if i['收录'] != 0:
@@ -573,6 +621,14 @@ if with_match:
     print(rank_information)
     with open(f'{_default_dir}/{rank_trans[_rank]}_{_index}_数据信息.txt', 'w') as f:
         f.write(rank_information)
+if with_template_generate:
     history(_rank, _index)
+    print('正在生成模板')
+    trans = lambda x: int((3 * x ** 2 - 5 * x + 4) / 2)  # 只是转换一下两边的序号
+    side_generate(trans(Pres_data.rank), Pres_data.max_count_main + 1, Pres_data.max_count_side)
+    if not os.path.exists(f'{_default_dir}/模板'):
+        os.mkdir(f'{_default_dir}/模板')
+    move_file('side', f'{_default_dir}/模板')
+    print('模板生成完成')
 
 input('按任意键退出')

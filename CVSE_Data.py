@@ -185,14 +185,14 @@ class Data:
                     except ValueError:
                         self.pub_time_time_struct = time.strptime(self.dict_['投稿时间'], '%Y-%m-%d %H:%M:%S')
         else:
-            self.pub_time_time_struct = time.strptime('1970/01/01 00:00:00', '%Y/%m/%d %H:%M:%S')
+            self.pub_time_time_struct = time.strptime('1970/01/01 00:00:10', '%Y/%m/%d %H:%M:%S')
         if '投稿时间' in self.dict_.keys():
-            self.pub_time_datetime = datetime.datetime.fromtimestamp(time.mktime(self.pub_time_time_struct))
             if isinstance(self.dict_['投稿时间'], datetime.datetime):
-                self.pub_time_datetime = self['搜稿时间']
+                self.pub_time_datetime = self['投稿时间']
                 self['投稿时间'] = self.dict_['投稿时间'].strftime('%Y-%m-%d %H:%M')
                 self.pub_time_time_struct = time.strptime(self.dict_['投稿时间'], '%Y-%m-%d %H:%M')
             else:
+                self.pub_time_datetime = datetime.datetime.fromtimestamp(time.mktime(self.pub_time_time_struct))
                 self.dict_['投稿时间'] = time.strftime('%Y/%m/%d %H:%M', self.pub_time_time_struct)
         for key in header + self.file_header:
             if key not in self.dict_.keys() or self.dict_[key] is None:
@@ -404,7 +404,7 @@ def read(file_path: str, class_type: type, max_rank: int = -1) -> list:
             if (str(new_data['名次']) == str(max_rank)) and (max_rank != -1):
                 break
     else:
-        print("格式错误")
+        print("文件名格式错误")
         input()
         raise RuntimeError
     print("读取完成")
