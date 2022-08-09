@@ -71,12 +71,11 @@ def calculate_time(_rank: int, _index: int) -> (datetime.datetime, datetime.date
 
 def calculate_index(_rank: int, time_start: datetime.datetime) -> int:
     if _rank == 0:
-        return dateutil.relativedelta.relativedelta(dt1=time_start, dt2=datetime.datetime.strptime("2021/04/28 3:00",
-                                                                                                   "%Y/%m/%d %H:%M")).months + 48
+        temp = dateutil.relativedelta.relativedelta(dt1=time_start, dt2=datetime.datetime.strptime("2021/04/28 3:00","%Y/%m/%d %H:%M"))
+        return temp.years * 12 + temp.months + 48
     if _rank == 1:
-        return dateutil.relativedelta.relativedelta(dt1=time_start, dt2=datetime.datetime.strptime("2021/11/26 3:00",
-                                                                                                   "%Y/%m/%d %H:%M")).weeks + 132
-
+        temp = time_start - datetime.datetime.strptime("2021/11/26 3:00","%Y/%m/%d %H:%M")
+        return temp.days // 7 + 132
 
 def tag_info_decorator(func):
     # 实现对象临时存储简介和tag信息，若为空则下载相应信息，函数执行完成后复原，被装饰的函数可以直接调用正确（非空）的desc和tag，同时保证调用前后不会改变存储状态
