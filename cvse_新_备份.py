@@ -351,7 +351,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             return place, new_place
         else:
             raise ValueError
-        if with_match:
+        if with_template_generate:
             if place <= Pres_data.max_count_main:
                 download_cover(str(av), 'cover/AV' + str(av) + '.jpg')
                 download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg')
@@ -508,9 +508,6 @@ def history(rank: int, index: int):
     # index是当前期的序号
     default_dir: str = f'{rank_trans[rank]}_{index}'
     his_index: int = calculate_index(rank, Pres_data.start_time - dateutil.relativedelta.relativedelta(years=1))
-    if rank == 1:
-        his_index += 1
-        # SV刊的历史回顾是指当前期收录起始时间减去一年所在的下一期
     text: str = f'请输入历史回顾当期（{his_index}期）数据的文件名，如 41-2010.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n输入1自动下载历史数据文件或读取已下载的数据文件，输入0跳过\n'
     file: str = input(text)
     while not os.path.exists(file):

@@ -146,25 +146,27 @@ def match(rank: int, index: int, start_time: datetime.datetime, pres_list: list[
                     del pres_list[0]
         """
     i = 0
+    prev_dict = {int(i['aid']): i for i in prev_list}
     for row_pres in pres_list:
         i += 1
-        for row_prev in prev_list:
+
             # 匹配并计算相关数据
             #if row_pres[header['aid']] == row_prev[header['aid']]:
-            if row_pres.is_same_song(row_prev):
-                row_pres[header['上次']] = row_prev[header['名次']]
-                row_pres[header['Last Pt']] = row_prev[header['Pt']]
-                row_pres.add_info(row_prev, key='staff')
-                row_pres.add_info(row_prev, key='原创')
-                row_pres.add_info(row_prev, key='引擎')
-                if float(row_pres[header['Last Pt']]) != 0.0:
-                    row_pres[header['rate']] = (
-                            (float(row_pres[header['Pt']]) / float(row_pres[header['Last Pt']])) - 1).__round__(
-                        5)
-                else:
-                    row_pres[header['rate']] = '——'
-                break
-        if row_pres[header['上次']] == '' or row_pres[header['上次']] == 'NEW':
+        if int(row_pres['aid']) in prev_dict:
+            row_prev = prev_dict[int(row_pres['aid'])]
+            row_pres[header['上次']] = row_prev[header['名次']]
+            row_pres[header['Last Pt']] = row_prev[header['Pt']]
+            row_pres.add_info(row_prev, key='staff')
+            row_pres.add_info(row_prev, key='原创')
+            row_pres.add_info(row_prev, key='引擎')
+            if float(row_pres[header['Last Pt']]) != 0.0:
+                row_pres[header['rate']] = (
+                        (float(row_pres[header['Pt']]) / float(row_pres[header['Last Pt']])) - 1).__round__(
+                    5)
+            else:
+                row_pres[header['rate']] = '——'
+            break
+        if row_pres[header['上次']] in ['', '——', 'NEW']:
             row_pres[header['Last Pt']] = '——'
             post_time = row_pres.pub_time_datetime
             """try:
