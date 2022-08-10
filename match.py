@@ -164,7 +164,7 @@ def match(rank: int, index: int, start_time: datetime.datetime, pres_list: list[
                 else:
                     row_pres[header['rate']] = '——'
                 break
-        if row_pres[header['上次']] == '' or row_pres[header['上次']] == 'NEW':
+        if row_pres[header['上次']] in ['', '——', 'NEW']:':
             row_pres[header['Last Pt']] = '——'
             post_time = row_pres.pub_time_datetime
             """try:
