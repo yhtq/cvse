@@ -13,7 +13,7 @@ import collect_staff
 import CVSE_Data
 import match
 from downloader import *
-from 副榜_包装 import *
+from 副榜_包装 import side_generate, move_file
 
 DEBUG = False
 header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '时长', '分P数', '播放增量', '弹幕增量', '评论增量', '收藏增量', '硬币增量', '分享增量',
@@ -47,10 +47,7 @@ else:
     remove_list = []
 
 
-@CVSE_Data.permission_access_decorator
-def remove(path: str):
-    os.remove(path)
-def _input(text: str, valid: callable(str), default=None):
+def _input(text: str, valid, default=None):
     result = input(text) or default
     while result is None or not valid(result):
         print('输入格式错误')
@@ -75,13 +72,11 @@ def calculate_time(_rank: int, _index: int) -> (datetime.datetime, datetime.date
 
 def calculate_index(_rank: int, time_start: datetime.datetime) -> int:
     if _rank == 0:
-        temp = dateutil.relativedelta.relativedelta(dt1=time_start,
-                                                    dt2=datetime.datetime.strptime("2021/04/28 3:00", "%Y/%m/%d %H:%M"))
+        temp = dateutil.relativedelta.relativedelta(dt1=time_start, dt2=datetime.datetime.strptime("2021/04/28 3:00","%Y/%m/%d %H:%M"))
         return temp.years * 12 + temp.months + 48
     if _rank == 1:
-        temp = time_start - datetime.datetime.strptime("2021/11/26 3:00", "%Y/%m/%d %H:%M")
+        temp = time_start - datetime.datetime.strptime("2021/11/26 3:00","%Y/%m/%d %H:%M")
         return temp.days // 7 + 132
-
 
 def tag_info_decorator(func):
     # 实现对象临时存储简介和tag信息，若为空则下载相应信息，函数执行完成后复原，被装饰的函数可以直接调用正确（非空）的desc和tag，同时保证调用前后不会改变存储状态
@@ -127,7 +122,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
     end_time: datetime.datetime = None
     max_count_main: int = 0  # 主榜最大曲数
     max_count_side: int = 0  # 副榜最大曲数
-    min_duration: int = 0  # 最短时长，单位为秒
+    min_duration: int = 0   # 最短时长，单位为秒
     remove_flag = 0
 
     @staticmethod
@@ -210,7 +205,6 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
                 flag = 1
                 break
         return flag
-
     @desc_title_info_decorator
     def get_staff(self, with_open_browser: bool = False):
         if not with_staff:
@@ -281,10 +275,10 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             else:
                 self['主榜'] = ''
             self['名次'] = place if self['HOT'] != 'HOT' else 'HOT'
-            self['新曲排名'] = new_place if self['新曲'] != '' else ''
+            self['新曲排名'] = new_place if self['新曲'] != '' else 0
 
-        # @tag_info_decorator
-        # @desc_title_info_decorator
+        #@tag_info_decorator
+        #@desc_title_info_decorator
         # 本来设想通过tag和简介提取一些引擎关键词，但是因为网速问题可能体验不太好略显鸡肋，待定
         def info_input(self: Pres_data):
             # 对于新曲需要标题,简介和tag信息用于更新引擎原创及staff，这里把所有需要的部分包装起来了
@@ -514,17 +508,13 @@ def history(rank: int, index: int):
     # index是当前期的序号
     default_dir: str = f'{rank_trans[rank]}_{index}'
     his_index: int = calculate_index(rank, Pres_data.start_time - dateutil.relativedelta.relativedelta(years=1))
-    if rank == 1:
-        his_index += 1
-        # SV刊的历史回顾是指当前期收录起始时间减去一年所在的下一期
     text: str = f'请输入历史回顾当期（{his_index}期）数据的文件名，如 41-2010.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n输入1自动下载历史数据文件或读取已下载的数据文件，输入0跳过\n'
     file: str = input(text)
     while not os.path.exists(file):
         if file == '0':
             return
         if file == '1':
-            status: int = download_history_data(Pres_data.end_time - dateutil.relativedelta.relativedelta(years=1),
-                                                Pres_data.rank, his_index, default_dir)
+            status: int = download_history_data(Pres_data.end_time - dateutil.relativedelta.relativedelta(years=1), Pres_data.rank, his_index, default_dir)
             if status:
                 file = f'{default_dir}/{his_index}.xlsx'
                 break
@@ -534,17 +524,14 @@ def history(rank: int, index: int):
         print('文件不存在')
         file = input(text)
     his_data = CVSE_Data.read(file, CVSE_Data.Data, 5)
-    his_data = [i for i in his_data if 'hot' not in str(i['名次']).lower()]
-    write_xlsx, save = CVSE_Data.Data.write_to_xlsx_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}_历史.xlsx',
-                                                            header=CVSE_Data.history_header)
+    write_xlsx, save = CVSE_Data.Data.write_to_xlsx_wrapper(header=CVSE_Data.history_header)
     for i in his_data:
         write_xlsx(i)
     his_cover_file = f"cover/history.jpg"
-    his_bv = input(f"请输入历史回顾排行榜(第{his_index})期的aid/bvid")
-    if os.path.exists(his_cover_file):
-        remove(his_cover_file)  # 因为download_cover的装饰器里写了如果文件已存在就不下载，这里删去原有的文件
-    download_cover(his_bv, his_cover_file)
-    save()
+    if not os.path.exists(his_cover_file):
+        his_bv = input(f"请输入历史回顾排行榜(第{his_index})期的aid/bvid")
+        download_cover(his_bv, his_cover_file)
+    save(f'{_default_dir}/{rank_trans[_rank]}_{_index}_历史.xlsx')
     if with_template_generate:
         generate(his_data, 'history', CVSE_Data.history_header, out_path=os.path.join(default_dir, '模板'))
     return
@@ -604,38 +591,37 @@ with open(f'{_default_dir}/remove_{_index}.txt', 'w+') as remove_pres:
         if i.is_new() and i['收录'] == 0:
             remove_pres.write(str(i['aid']) + '\n')
 pres_list.sort(reverse=True)
-write_xlsx, save = CVSE_Data.Data.write_to_xlsx_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}_含不收录曲.xlsx',
-                                                        header=CVSE_Data.xlsx_header)
-write_xlsx_, save_ = CVSE_Data.Data.write_to_xlsx_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}.xlsx',
-                                                        header=CVSE_Data.xlsx_header)
+write_xlsx, save = CVSE_Data.Data.write_to_xlsx_wrapper()
+write_xlsx_, save_ = CVSE_Data.Data.write_to_xlsx_wrapper()
 outfile_header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '时长', '分P数', '播放增量', '弹幕增量', '评论增量', '收藏增量', '硬币增量',
                   '分享增量',
                   '点赞增量', 'Pt', '修正A', '修正B', '修正C', 'Last Pt', 'rate', '长期入榜及期数', '新曲排名']
-backup_writer, backup_save = CVSE_Data.Data.write_to_csv_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv')
+with open(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv', 'w', newline='', encoding='utf-8-sig') as f:
+    f = csv.DictWriter(f, fieldnames=header)
+    f.writeheader()
 if with_template_generate:
-    outfile_writer, outfile_save = CVSE_Data.Data.write_to_csv_wrapper("outfile.csv", header=outfile_header)
-else:
-    outfile_writer, outfile_save = None, None
+    with open(f'outfile.csv', 'w', newline='', encoding='utf-8-sig') as f:
+        f = csv.DictWriter(f, fieldnames=outfile_header)
+        f.writeheader()
+for i in pres_list:
+    i.write_to_csv(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv', header)
+    if with_template_generate:
+        if str(i['收录']) != '0' and i['HOT'] != 'HOT':
+            i.write_to_csv(f'outfile.csv', outfile_header)
 for idx, i in enumerate(pres_list):
     write_xlsx(i)
     if i['收录'] != 0:
         write_xlsx_(i)
-    backup_writer(i)
-    if with_template_generate:
-        if str(i['收录']) != '0' and i['HOT'] != 'HOT':
-            outfile_writer(i)
     if idx % 100 == 0:
         print(f'正在写入第{idx}条数据')
-save()
-save_()
-backup_save()
-outfile_save()
+save(f'{_default_dir}/{rank_trans[_rank]}_{_index}_含不收录曲.xlsx')
+save_(f'{_default_dir}/{rank_trans[_rank]}_{_index}.xlsx')
 print(f'已保存为{_default_dir}/{rank_trans[_rank]}_{_index}.xlsx')
 if new_rank_list:
-    write_new_xlsx, save_new = CVSE_Data.Data.write_to_xlsx_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}_新曲榜.xlsx')
+    write_new_xlsx, save_new = CVSE_Data.Data.write_to_xlsx_wrapper()
     for i in new_rank_list:
         write_new_xlsx(i)
-    save_new()
+    save_new(f'{_default_dir}/{rank_trans[_rank]}_{_index}_新曲榜.xlsx')
 if with_match:
     write_long_term_xlsx, save = Pres_data.write_long_term_data_wrapper()
     i = iter(pres_list)
@@ -650,19 +636,13 @@ if with_match:
         f.write(rank_information)
 if with_template_generate:
     print('正在生成模板')
+    history(_rank, _index)
+    generate(pres_list, 'main', CVSE_Data.xlsx_header, out_path=os.path.join(_default_dir, '模板'), end_flag=('主榜', '主榜截止'))
+    generate(new_rank_list, 'new_rank', CVSE_Data.xlsx_header, out_path=os.path.join(_default_dir, '模板'))
+    trans = lambda x: int((3 * x ** 2 - 5 * x + 4) / 2)  # 只是转换一下两边的序号
+    side_generate(trans(Pres_data.rank), Pres_data.max_count_main + 1, Pres_data.max_count_side)
     if not os.path.exists(f'{_default_dir}/模板'):
         os.mkdir(f'{_default_dir}/模板')
-    remove_file(f'{_default_dir}/模板')
-    history(_rank, _index)
-    generate(pres_list, 'main', CVSE_Data.xlsx_header,
-             out_path=os.path.join(_default_dir, '模板'),
-             end_flag=('主榜', '主榜截止'),
-             valid=lambda x: x['收录'])
-    if new_rank_list:
-        generate(new_rank_list, 'new_rank', CVSE_Data.xlsx_header, out_path=os.path.join(_default_dir, '模板'))
-    trans = lambda x: int((3 * x ** 2 - 5 * x + 4) / 2)  # 只是转换一下两边的序号
-    print("正在生成副榜模板")
-    side_generate(trans(Pres_data.rank), Pres_data.max_count_main + 1, Pres_data.max_count_side)
     move_file('side', f'{_default_dir}/模板')
     print('模板生成完成')
 

@@ -18,7 +18,7 @@ with open('config_match.ini') as config_file:
 
 
 def match(rank: int, index: int, start_time: datetime.datetime, pres_list: list[CVSE_Data.Data], prev_list: list[CVSE_Data.Data]):
-    list_long = {}
+    list_long: dict[int, int] = {}
     rank_trans = {0: "C", 1: "SV", 2: "U"}
     conti_bound = config[f'continuous_ranked_time_bound_{rank_trans[rank]}']
     nonconti_bound = config[f'non_continuous_ranked_time_bound_{rank_trans[rank]}']
@@ -146,25 +146,27 @@ def match(rank: int, index: int, start_time: datetime.datetime, pres_list: list[
                     del pres_list[0]
         """
     i = 0
+    prev_dict = {int(i['aid']): i for i in prev_list}
     for row_pres in pres_list:
         i += 1
-        for row_prev in prev_list:
+        if i % 100 == 0:
+            print('正在处理第' + str(i) + '/' + str(len(pres_list)) + '条记录……')
             # 匹配并计算相关数据
             #if row_pres[header['aid']] == row_prev[header['aid']]:
-            if row_pres.is_same_song(row_prev):
-                row_pres[header['上次']] = row_prev[header['名次']]
-                row_pres[header['Last Pt']] = row_prev[header['Pt']]
-                row_pres.add_info(row_prev, key='staff')
-                row_pres.add_info(row_prev, key='原创')
-                row_pres.add_info(row_prev, key='引擎')
-                if float(row_pres[header['Last Pt']]) != 0.0:
-                    row_pres[header['rate']] = (
-                            (float(row_pres[header['Pt']]) / float(row_pres[header['Last Pt']])) - 1).__round__(
-                        5)
-                else:
-                    row_pres[header['rate']] = '——'
-                break
-        if row_pres[header['上次']] in ['', '——', 'NEW']:':
+        if int(row_pres['aid']) in prev_dict.keys():
+            row_prev = prev_dict[int(row_pres['aid'])]
+            row_pres[header['上次']] = row_prev[header['名次']]
+            row_pres[header['Last Pt']] = row_prev[header['Pt']]
+            row_pres.add_info(row_prev, key='staff')
+            row_pres.add_info(row_prev, key='原创')
+            row_pres.add_info(row_prev, key='引擎')
+            if float(row_pres[header['Last Pt']]) != 0.0:
+                row_pres[header['rate']] = (
+                        (float(row_pres[header['Pt']]) / float(row_pres[header['Last Pt']])) - 1).__round__(
+                    5)
+            else:
+                row_pres[header['rate']] = '——'
+        if row_pres[header['上次']] in ['', '——', 'NEW']:
             row_pres[header['Last Pt']] = '——'
             post_time = row_pres.pub_time_datetime
             """try:
@@ -180,7 +182,7 @@ def match(rank: int, index: int, start_time: datetime.datetime, pres_list: list[
                 row_pres[header['上次']] = '——'
                 row_pres[header['rate']] = '——'
         # 判断长期入榜
-        aid = row_pres[header['aid']]
+        aid = int(row_pres[header['aid']])
         if aid in list_long:
             recent_in = list_long[aid]
             row_pres['长期入榜及期数'] = recent_in
@@ -190,8 +192,6 @@ def match(rank: int, index: int, start_time: datetime.datetime, pres_list: list[
         if _hot == 2:
             row_pres['HOT'] = '两次前三'
 
-        if i % 100 == 0:
-            print('正在处理第' + str(i) + '/' + str(len(pres_list)) + '条记录……')
 
 
 """    while True:
