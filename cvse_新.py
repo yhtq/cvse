@@ -563,6 +563,7 @@ def pick_up(pres_data: list[Pres_data], rank: int, index: int):
                 continue
             data: Pres_data = temp_list[0]
             data.get_staff(with_open_browser=True)
+            pk_data.append(data)
             pk_aid = int(_input("请输入pick up视频的aid，一次输入一个，输入0退出", lambda x: x.isdigit()))
         pk_data.sort(reverse=True)
         for i in pk_data:
