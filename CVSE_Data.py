@@ -12,11 +12,20 @@ header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '
           'rate', 'staff', '新曲排名', '新曲', '未授权搬运', '已删稿', 'HOT']
 xlsx_header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '时长', '分P数', '播放增量', '弹幕增量', '评论增量', '收藏增量', '硬币增量',
                '分享增量',
-               '点赞增量', 'Pt', '修正A', '修正B', '修正C', 'Last Pt', 'rate', '长期入榜及期数' ,'新曲排名', 'staff']
+               '点赞增量', 'Pt', '修正A', '修正B', '修正C', 'Last Pt', 'rate', '长期入榜及期数', '新曲排名', 'staff']
 history_header = ['名次', '上次', 'aid', '标题', 'up主', '投稿时间', '时长', '分P数', '播放增量', '弹幕增量', '评论增量', '收藏增量', '硬币增量',
-               '分享增量',
-               '点赞增量', 'Pt', '修正A', '修正B', '修正C', 'Last Pt', 'rate', 'staff']
+                  '分享增量',
+                  '点赞增量', 'Pt', '修正A', '修正B', '修正C', 'Last Pt', 'rate', 'staff']
 xlsx_header_index = {i + 1: header[i] for i in range(len(header))}
+
+
+def timer(func):
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        func(*args, **kwargs)
+        print(f'cost:{time.time() - start_time}')
+
+    return wrapper()
 
 
 def permission_access_decorator(func):
@@ -24,7 +33,7 @@ def permission_access_decorator(func):
         try:
             return func(file, *args, **kwargs)
         except PermissionError:
-            print(f"{file}文件被占用，请关闭文件后按任意键重试")
+            print(f"{file}被占用，请关闭文件后按任意键重试")
             input()
             return wrapper(file, *args, **kwargs)
 
@@ -44,7 +53,7 @@ class Data:
     ignore = ['HOT', '新曲排名', '长期入榜及期数', "主榜"]  # 这些列不读入数据
 
     @staticmethod
-    def write_to_xlsx_wrapper(header: list['str'] | str = None):
+    def write_to_xlsx_wrapper(file_name: str, header: list['str'] | str = None):
         if header is None:
             header = xlsx_header
         if header == 'history':
@@ -66,7 +75,7 @@ class Data:
                         ws.cell(row=line, column=idx + 1).number_format = '0.000'
                     elif key == 'rate':
                         ws.cell(row=line, column=idx + 1).value = round(float(self[key]), 6)
-                        ws.cell(row=line, column=idx + 1).number_format = '0.00%'
+                        ws.cell(row=line, column=idx + 1).number_format = '0.000%'
                     elif key in ['播放增量', '弹幕增量', '评论增量', '收藏增量', '硬币增量', '分享增量', '点赞增量', 'Pt', 'Last Pt']:
                         ws.cell(row=line, column=idx + 1).value = int(float(self[key]))
                         ws.cell(row=line, column=idx + 1).number_format = '#,##0'
@@ -91,13 +100,60 @@ class Data:
             line += 1
             return
 
-        @permission_access_decorator
-        def save_close(path: str):
-            nonlocal wb
-            wb.save(path)
-            wb.close()
+        def save_close():
+            @permission_access_decorator
+            def _save_close(file: str):
+                nonlocal wb
+                wb.save(file)
+                wb.close()
+            _save_close(file_name)
 
         return write_to_xlsx, save_close
+
+    @staticmethod
+    def write_to_csv_wrapper(file_name: str, header=header):
+        #  一次性写入，覆盖原有数据
+
+        @permission_access_decorator
+        def __open(file:str):
+            f = open(file_name, 'w+', encoding='utf-8-sig', newline='')
+            writer = csv.DictWriter(f, fieldnames=header)
+            writer.writeheader()
+            return f, writer
+        f, writer = __open(file_name)
+
+        def write_to_csv(self: Data, with_seconds: bool = False, with_format: bool = False):
+            dict_to_write = {key: value for key, value in self.dict_.items() if key in header}
+            if with_seconds:
+                dict_to_write['投稿时间'] = self.pub_time_datetime.strftime('%Y/%m/%d %H:%M:%S')
+            else:
+                dict_to_write['投稿时间'] = self.pub_time_datetime.strftime('%Y/%m/%d %H:%M')
+            if with_format:
+                for key in header:
+                    try:
+                        if key in ['修正A', '修正B', '修正C']:
+                            dict_to_write[key] = f'{float(self[key]):.3f}'
+                        elif key == 'rate':
+                            dict_to_write[key] = f'{float(self[key])*100:.3f}%'
+                        elif key in ['播放增量', '弹幕增量', '评论增量', '收藏增量', '硬币增量', '分享增量', '点赞增量', 'Pt', 'Last Pt']:
+                            dict_to_write[key] = f'{int(float(self[key])):,}'
+                        elif key == '新曲排名':
+                            if int(float(self[key])) == 0:
+                                dict_to_write[key] = ''
+                            else:
+                                dict_to_write[key] = f'{int(float(self[key])):03}'
+                        elif str(self[key]).isdigit():
+                            dict_to_write[key] = f'{int(self[key])}'
+                        else:
+                            dict_to_write[key] = f'{self[key]}'
+                    except ValueError:
+                        dict_to_write[key] = f'{self[key]}'
+            writer.writerow(dict_to_write)
+
+        def save_close():
+            f.close()
+
+        return write_to_csv, save_close
 
     def __init__(self, data, data_type: str, file_header: list = None):
         # data_type必须为"xlsx"或“csv", data 是tuple, list, dict其中之一，前两者要求提供列索引(list)，
@@ -230,7 +286,11 @@ class Data:
             elif self.dict_['引擎'].lower() == 'xstudio' or self.dict_['引擎'].lower() == 'x studio':
                 self.dict_['引擎'] = 'X Studio'
 
-    def write_to_csv(self, file_name: str, head: list, with_seconds: bool = False):
+    def write_to_csv(self,
+                     file_name: str,
+                     head: list[str],
+                     with_seconds: bool = False):
+        #  续写，分条写入
         @permission_access_decorator
         def _write(file_name: str):
             nonlocal self
@@ -239,7 +299,7 @@ class Data:
                 dict_to_write['投稿时间'] = self.pub_time_datetime.strftime('%Y/%m/%d %H:%M:%S')
             else:
                 dict_to_write['投稿时间'] = self.pub_time_datetime.strftime('%Y/%m/%d %H:%M')
-            with open(file_name, 'a+', encoding='utf-8', newline='') as f:
+            with open(file_name, 'a+', encoding='utf-8-sig', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=head)
                 writer.writerow(dict_to_write)
 
@@ -287,7 +347,7 @@ class Data:
                                             end_color='FFFF00')
         return font, pattern, border
 
-    def add_info(self, other, key=None):    # 添加信息，只会添加为没有或为空值的键值，不改变已有的键值
+    def add_info(self, other, key=None):  # 添加信息，只会添加为没有或为空值的键值，不改变已有的键值
         if not self.is_same_song(other):
             print('aid不一致,不能合并')
             input()
