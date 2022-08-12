@@ -554,7 +554,7 @@ def pick_up(pres_data: list[Pres_data], rank: int, index: int):
     default_dir: str = f'{rank_trans[rank]}_{index}'
     pk_aid = int(_input("请输入pick up视频的aid，一次输入一个，输入0退出", lambda x: x.isdigit()))
     if pk_aid != 0:
-        write_xlsx_pk, save_pk = CVSE_Data.Data.write_to_xlsx_wrapper()
+        write_xlsx_pk, save_pk = CVSE_Data.Data.write_to_xlsx_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}_pick_up.xlsx')
         pk_data: list[Pres_data] = []
         while pk_aid != 0:
             temp_list: list[Pres_data] = [i for i in pres_data if int(i['aid']) == pk_aid]
@@ -567,7 +567,7 @@ def pick_up(pres_data: list[Pres_data], rank: int, index: int):
         pk_data.sort(reverse=True)
         for i in pk_data:
             write_xlsx_pk(i)
-        save_pk(f'{_default_dir}/{rank_trans[_rank]}_{_index}_pick_up.xlsx')
+        save_pk()
         if with_template_generate:
             generate(pk_data, 'pick_up', CVSE_Data.xlsx_header, out_path=os.path.join(default_dir, '模板'))
 
@@ -653,6 +653,7 @@ if with_template_generate:
     if not os.path.exists(f'{_default_dir}/模板'):
         os.mkdir(f'{_default_dir}/模板')
     remove_file(f'{_default_dir}/模板')
+    pick_up(pres_list, _rank, _index)
     history(_rank, _index)
     generate(pres_list, 'main', CVSE_Data.xlsx_header,
              out_path=os.path.join(_default_dir, '模板'),
