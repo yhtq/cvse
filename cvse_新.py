@@ -200,7 +200,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
 
     def duration_check(self) -> int:
         # 检查时长, -1表示已删稿
-        res2 = request('https://api.bilibili.com/x/player/pagelist?aid=' + self['aid'])
+        res2 = request('https://api.bilibili.com/x/player/pagelist?aid=' + str(self['aid']))
         res2 = json.loads(res2.text)
         if not "data" in res2:
             return -1
