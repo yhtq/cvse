@@ -3,6 +3,8 @@
  
  暂时是个可能稳定的版本，后续还有很多东西没改
  
+ 在Release中下载Source Code即可。如果要制作模板，需要额外下载字体包和工具包，解压后放在程序目录下（如 cvse\\Fonts ）
+ 
  cvse_新.py/cvse_新.exe是要运行的脚本
  
  CVSE_Data.py 主要是按照CVSE常用格式读写数据，不需要运行
