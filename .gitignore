@@ -1,6 +1,8 @@
 
 *.jpg
 *.png
+Fonts/*
+主榜工具/*
 /.idea
 gen.py
 remove*.txt
