@@ -105,11 +105,10 @@ def desc_title_info_decorator(func):
         init_title = self.title
         if not self.desc:
             res_data = \
-                json.loads(request('https://api.bilibili.com/x/web-interface/view?aid=' + str(self['aid'])).text)[
-                    'data']
+                json.loads(request('https://api.bilibili.com/x/web-interface/view?aid=' + str(self['aid'])).text)
             if 'data' in res_data:
-                self.desc = res_data['desc']
-                self.title = res_data['title']
+                self.desc = res_data['data']['desc']
+                self.title = res_data['data']['title']
         result = func(self, *args, **kwargs)
         self.title = init_title
         self.desc = init_desc
