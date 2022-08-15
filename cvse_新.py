@@ -629,7 +629,8 @@ for idx, i in enumerate(pres_list):
 save()
 save_()
 backup_save()
-outfile_save()
+if with_template_generate:
+    outfile_save()
 print(f'已保存为{_default_dir}/{rank_trans[_rank]}_{_index}.xlsx')
 if new_rank_list:
     write_new_xlsx, save_new = CVSE_Data.Data.write_to_xlsx_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}_新曲榜.xlsx')
