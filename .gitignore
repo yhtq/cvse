@@ -3,6 +3,7 @@
 *.png
 Fonts/*
 主榜工具/*
+其他工具/*
 /.idea
 gen.py
 remove*.txt
