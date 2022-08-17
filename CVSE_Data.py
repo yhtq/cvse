@@ -185,12 +185,12 @@ class Data:
                 dict_[self.file_header[idx + 1]] = k.value
                 try:
                     if not k.fill is None:
-                        if k.fill.start_color.rgb in ['FFFFFF00', '00FFFF00']:
+                        if k.fill.start_color.rgb[2:] == 'FFFF00':
                             dict_['收录'] = 0
-                        if k.fill.start_color.rgb in ['00C00000', 'FFFF0000', '0092D050', 'FF92D050']:
+                        if k.fill.start_color.rgb[2:] in ['C00000', 'FF0000', '92D050']:
                             dict_['原创'] = '原创'
                             dict_['收录'] = 1
-                        if k.fill.start_color.rgb in ['FFFFC000', '00FFC000']:
+                        if k.fill.start_color.rgb[2:] == 'FFC000':
                             dict_['未授权搬运'] = '未授权搬运'
                             dict_['收录'] = 1
                 except AttributeError:

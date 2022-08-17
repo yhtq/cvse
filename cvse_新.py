@@ -138,6 +138,8 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             col += 1
             if col > 500:
                 print(f'data_{rank_trans[Pres_data.rank]}.xlsx 格式错误')
+                print('按任意键退出')
+                raise ValueError
         ws.cell(1, col).value = f'#{Pres_data.index}'
         Hot_line = 2
         line = 2
@@ -264,7 +266,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             if self.is_new() and place > Pres_data.max_count_main and new_place <= new_rank_number[
                 Pres_data.rank]:
                 self['新曲'] = '新曲榜'
-                if with_staff:
+                if with_staff and self['staff'] == '':
                     self.get_staff(not browser_flag)
                     if self['原创'] == '其他':
                         self['原创'] = ''
