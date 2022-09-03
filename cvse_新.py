@@ -606,9 +606,10 @@ if with_match:
 if Pres_data.flag != 1:
     load_record(pres_list, f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv')
     load_record(pres_list, f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv')
-with open(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv', 'w', newline='', encoding='utf-8-sig') as f:
-    f = csv.DictWriter(f, fieldnames=header)
-    f.writeheader()
+if not os.path.exists(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv'):
+    with open(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv', 'w', newline='', encoding='utf-8-sig') as f:
+        f = csv.DictWriter(f, fieldnames=header)
+        f.writeheader()
 place = 1
 new_place = 1
 pres_list.sort(reverse=True)
