@@ -12,6 +12,7 @@ import openpyxl as op
 import collect_staff
 import CVSE_Data
 import match
+from collections.abc import Callable
 from downloader import *
 from 副榜_包装 import *
 
@@ -19,7 +20,8 @@ DEBUG = False
 header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '时长', '分P数', '播放增量', '弹幕增量', '评论增量', '收藏增量', '硬币增量', '分享增量',
           '点赞增量', 'Pt', '修正A', '修正B', '修正C', '长期入榜及期数', '收录', "引擎", '原创', "主榜", 'Last Pt',
           'rate', 'staff', '新曲排名', '新曲', '未授权搬运', '已删稿', 'HOT']
-engine = {1: 'Sharpkey', 2: 'DeepVocal', 3: 'MUTA', 4: '袅袅虚拟歌手', 5: 'AISingers', 6: 'X Studio', 7: '跨引擎'}
+engine = {1: 'Sharpkey', 2: 'DeepVocal', 3: 'MUTA', 4: '袅袅虚拟歌手', 5: 'AISingers', 6: 'X Studio', 7: '跨引擎', 8: 'Vogen',
+          9: 'VocalSharp'}
 flag = 0
 rank_trans = {0: "C", 1: "SV", 2: "U"}
 # max_main = {0: 20, 1: 25}
@@ -35,6 +37,7 @@ try:
         max_side: dict[int, int] = {int(i): j for i, j in config['max_side'].items()}
         new_rank_number: dict[int, int] = {int(i): j for i, j in config['new_rank_number'].items()}
         min_duration: dict[int, int] = {int(i): j for i, j in config['min_duration'].items()}
+        video_start_time: int = int(config['start_time'])
 except Exception as e:
     print(e)
     print("配置错误")
@@ -50,6 +53,8 @@ else:
 @CVSE_Data.permission_access_decorator
 def remove(path: str):
     os.remove(path)
+
+
 def _input(text: str, valid: callable(str), default=None):
     result = input(text) or default
     while result is None or not valid(result):
@@ -83,7 +88,7 @@ def calculate_index(_rank: int, time_start: datetime.datetime) -> int:
         return temp.days // 7 + 132
 
 
-def tag_info_decorator(func):
+def tag_info_decorator(func: Callable):
     # 实现对象临时存储简介和tag信息，若为空则下载相应信息，函数执行完成后复原，被装饰的函数可以直接调用正确（非空）的desc和tag，同时保证调用前后不会改变存储状态
     def wrapper(self, *args, **kwargs):
         init_tag = self.tag
@@ -98,7 +103,7 @@ def tag_info_decorator(func):
     return wrapper
 
 
-def desc_title_info_decorator(func):
+def desc_title_info_decorator(func: Callable[..., None]) -> Callable[..., None]:
     # 实现对象临时存储简介和tag信息，若为空则下载相应信息，函数执行完成后复原，被装饰的函数可以直接调用正确（非空）的desc和tag，同时保证调用前后不会改变存储状态
     def wrapper(self, *args, **kwargs):
         init_desc = self.desc
@@ -255,11 +260,14 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         _staff += new_staff
         self['staff'] = _staff
 
-    def inclusion(self, place: int, new_place: int):  # 收录, 参数分别为此曲排名和此曲作为新曲的排名, 返回值为下一位的排名和作为新曲的排名
-        def staff_info_confirm(browser_flag):
-            nonlocal self, place, new_place
+    def inclusion(self, place: int, new_place: int) -> (int, int, bool):  # 收录, 参数分别为此曲排名和此曲作为新曲的排名, 返回值为下一位的排名和作为新曲的排名
+        info_input_flag: bool = False
+
+        def staff_info_confirm(browser_flag: bool) -> None:
+            nonlocal self, place, new_place, info_input_flag
             if place <= Pres_data.max_count_main and self['staff'] == '':
                 if with_staff:
+                    info_input_flag = True
                     self.get_staff(not browser_flag)
                     if self['原创'] == '其他':
                         self['原创'] = ''
@@ -267,14 +275,15 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
                 Pres_data.rank]:
                 self['新曲'] = '新曲榜'
                 if with_staff and self['staff'] == '':
+                    info_input_flag = True
                     self.get_staff(not browser_flag)
                     if self['原创'] == '其他':
                         self['原创'] = ''
             if place > Pres_data.max_count_main and self['原创'] == '原创':
                 self['原创'] = '榜外原创'
 
-        def rank_info_confirm():
-            nonlocal self, place, new_place
+        def rank_info_confirm() -> None:
+            nonlocal self, place, new_place, info_input_flag
             if place == Pres_data.max_count_main and self['HOT'] != 'HOT' and self['长期入榜及期数'] == '':
                 self['主榜'] = '主榜截止'
             elif place == Pres_data.max_count_side:
@@ -287,15 +296,16 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         # @tag_info_decorator
         # @desc_title_info_decorator
         # 本来设想通过tag和简介提取一些引擎关键词，但是因为网速问题可能体验不太好略显鸡肋，待定
-        def info_input(self: Pres_data):
+        def info_input(self: Pres_data) -> None:
             # 对于新曲需要标题,简介和tag信息用于更新引擎原创及staff，这里把所有需要的部分包装起来了
-            nonlocal place, new_place
+            nonlocal place, new_place, info_input_flag
             # print(self.title)
             # print(self.desc)
             # print(self.tag)
+            info_input_flag = True
             if Pres_data.rank == 0:
                 #  国产榜
-                self['引擎'] = _input("引擎为：1=SK 2=DV 3=Muta 4=袅袅 5=AiSinger 6=Xstudio 7=跨引擎\n",
+                self['引擎'] = _input("引擎为：1=SK 2=DV 3=Muta 4=袅袅 5=AiSinger 6=Xstudio 7=跨引擎 8=Vogen 9=V#\n",
                                     lambda x: x.isdigit() and int(x) in list(range(1, 8)))
                 self['引擎'] = engine[int(self['引擎'])]
             else:
@@ -313,6 +323,8 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         res2 = 0
         if self.is_new():
             self['上次'] = 'NEW'
+        if self['上次'] == '——' and with_match:
+            self['收录'] = 0
         hot_flag = False
         browser_flag = 0  # 是否已打开浏览器
         av = self['aid']
@@ -325,19 +337,19 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
                 self['已删稿'] = 1
                 self['收录'] = 0
                 Pres_data.remove_flag = 1
-                return place, new_place
+                return place, new_place, info_input_flag
             if res == 0:
                 self['收录'] = 0
                 Pres_data.remove_flag = 1
-                return place, new_place
-            webbrowser.open("https://www.bilibili.com/video/av" + str(av))
+                return place, new_place, info_input_flag
+            webbrowser.open("https://www.bilibili.com/video/av" + str(av) + '?t=' + str(video_start_time))
             browser_flag = 1
             inclusion = _input("是否收录 y/n，默认为y\n", lambda x: x in ['y', 'n'], 'y')
             if inclusion == 'n':
                 self['收录'] = 0
                 remove_list.append(self['aid'])
                 Pres_data.remove_flag = 1
-                return place, new_place
+                return place, new_place, info_input_flag
             self['收录'] = 1
             info_input(self)  # 这里已经包含了下面的rank_info_confirm和staff_info_confirm两个方法，这么包装只是为了保证不会把简介和tag信息请求两次
         elif self['收录'] == 1:
@@ -351,11 +363,16 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             elif place <= Pres_data.max_count_main and self['长期入榜及期数'] != '':
                 Pres_data.max_count_main += 1
                 Pres_data.max_count_side += 1
+            if Pres_data.rank == 0 and self['staff']:
+                temp_list: list[str] = self['staff'].split('  |  ')
+                _engine = temp_list[0]
+                if _engine in engine.values():
+                    self['引擎'] = _engine
             rank_info_confirm()
-            staff_info_confirm(browser_flag=browser_flag)
+            staff_info_confirm(browser_flag=bool(browser_flag))
         elif self['收录'] == 0:
             Pres_data.remove_flag = 1
-            return place, new_place
+            return place, new_place, info_input_flag
         else:
             raise ValueError
         if with_template_generate:
@@ -368,16 +385,18 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             if new_place <= new_rank_number[Pres_data.rank] and self.is_new():
                 download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg')
         if self['新曲'] != '':
-            return place + 1, new_place + 1
+            return place + 1, new_place + 1, info_input_flag
         elif hot_flag:
-            return place, new_place
+            return place, new_place, info_input_flag
         else:
-            return place + 1, new_place
+            return place + 1, new_place, info_input_flag
 
 
 class Rank_data:
     data_list = ['播放', '弹幕', '评论', '收藏', '硬币', '分享', '点赞']
-    engine_list = ['袅袅虚拟歌手', 'MUTA', 'Sharpkey', 'DeepVocal', 'AISingers', 'X Studio', '跨引擎']
+    engine_list = ['袅袅虚拟歌手', 'MUTA', 'Sharpkey', 'DeepVocal', 'AISingers', 'X Studio', 'VocalSharp', 'Vogen', '跨引擎']
+
+    # 应正佬要求按发布时间排序引擎
 
     def __init__(self, data: list[CVSE_Data.Data]):
         self.Data_list = data
@@ -498,14 +517,14 @@ def read_last(rank: int, index: int):
             break
         print('文件不存在')
         file = input(f'请输入上期排行榜的文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n')
-    return CVSE_Data.read(file, CVSE_Data.Data)
+    return CVSE_Data.read(file, class_type=CVSE_Data.Data)
 
 
 def load_record(_pres_list: list[CVSE_Data.Data], file_name: str):
     if not os.path.exists(file_name):
         return _pres_list
     print("读取记录")
-    record_list = CVSE_Data.read(file_name, Pres_data)
+    record_list = CVSE_Data.read(file_name, class_type=Pres_data)
     temp_dict = {int(i['aid']): i for i in record_list}
     [i.add_info(temp_dict[int(i['aid'])]) for i in _pres_list if int(i['aid']) in temp_dict.keys()]
     return
@@ -555,7 +574,8 @@ def pick_up(pres_data: list[Pres_data], rank: int, index: int):
     default_dir: str = f'{rank_trans[rank]}_{index}'
     pk_aid = int(_input("请输入pick up视频的aid，一次输入一个，输入0退出", lambda x: x.isdigit()))
     if pk_aid != 0:
-        write_xlsx_pk, save_pk = CVSE_Data.Data.write_to_xlsx_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}_pick_up.xlsx')
+        write_xlsx_pk, save_pk = CVSE_Data.Data.write_to_xlsx_wrapper(
+            f'{_default_dir}/{rank_trans[_rank]}_{_index}_pick_up.xlsx')
         pk_data: list[Pres_data] = []
         while pk_aid != 0:
             temp_list: list[Pres_data] = [i for i in pres_data if int(i['aid']) == pk_aid]
@@ -595,10 +615,11 @@ pres_list.sort(reverse=True)
 new_rank_list: list[Pres_data] = []
 with open(f'{_default_dir}/remove_{_index}.txt', 'w+') as remove_pres:
     for i in pres_list:
-        place, new_place = i.inclusion(place, new_place)
+        place, new_place, change_flag = i.inclusion(place, new_place)
         if i['新曲'] == '新曲榜':
             new_rank_list.append(i)
-        i.write_to_csv(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv', header)
+        if change_flag:
+            i.write_to_csv(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv', header)
         if Pres_data.remove_flag:
             with open('remove.txt', 'a+') as remove_f:
                 remove_f.write(str(i['aid']) + '\n')
@@ -609,13 +630,14 @@ pres_list.sort(reverse=True)
 write_xlsx, save = CVSE_Data.Data.write_to_xlsx_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}_含不收录曲.xlsx',
                                                         header=CVSE_Data.xlsx_header)
 write_xlsx_, save_ = CVSE_Data.Data.write_to_xlsx_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}.xlsx',
-                                                        header=CVSE_Data.xlsx_header)
+                                                          header=CVSE_Data.xlsx_header)
 outfile_header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '时长', '分P数', '播放增量', '弹幕增量', '评论增量', '收藏增量', '硬币增量',
                   '分享增量',
                   '点赞增量', 'Pt', '修正A', '修正B', '修正C', 'Last Pt', 'rate', '长期入榜及期数', '新曲排名']
-backup_writer, backup_save = CVSE_Data.Data.write_to_csv_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv')
+backup_writer, backup_save = CVSE_Data.Data.write_to_csv_wrapper(
+    f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv')
 if with_template_generate:
-    outfile_writer, outfile_save = CVSE_Data.Data.write_to_csv_wrapper("outfile.csv", header=outfile_header)
+    outfile_writer, outfile_save = CVSE_Data.Data.write_to_csv_wrapper("outfile.csv", _header=outfile_header)
 else:
     outfile_writer, outfile_save = None, None
 for idx, i in enumerate(pres_list):
@@ -625,7 +647,8 @@ for idx, i in enumerate(pres_list):
     backup_writer(i)
     if with_template_generate:
         if str(i['收录']) != '0' and i['HOT'] != 'HOT':
-            outfile_writer(i)
+            if Pres_data.rank == 1 and int(i['名次']) <= Pres_data.max_count_side:    # SV只做副榜，新曲榜副榜另做
+                outfile_writer(i)
     if idx % 100 == 0:
         print(f'正在写入第{idx}条数据')
 save()
@@ -635,7 +658,8 @@ if with_template_generate:
     outfile_save()
 print(f'已保存为{_default_dir}/{rank_trans[_rank]}_{_index}.xlsx')
 if new_rank_list:
-    write_new_xlsx, save_new = CVSE_Data.Data.write_to_xlsx_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}_新曲榜.xlsx')
+    write_new_xlsx, save_new = CVSE_Data.Data.write_to_xlsx_wrapper(
+        f'{_default_dir}/{rank_trans[_rank]}_{_index}_新曲榜.xlsx')
     for i in new_rank_list:
         write_new_xlsx(i)
     save_new()
@@ -668,6 +692,10 @@ if with_template_generate:
     print("正在生成副榜模板")
     side_generate(trans(Pres_data.rank), Pres_data.max_count_main + 1, Pres_data.max_count_side)
     move_file('side', f'{_default_dir}/模板')
+    if Pres_data.rank == 1:
+        generate(pres_list, 'new_side', CVSE_Data.xlsx_header,
+                 out_path=os.path.join(_default_dir, '模板'),
+                 valid=lambda x: x['收录'] and x.is_new() and int(x['名次']) > Pres_data.max_count_side)
     print('模板生成完成')
 
 input('按任意键退出')

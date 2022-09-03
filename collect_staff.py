@@ -27,7 +27,7 @@ def collect(text: str, key_word_list: list):
             break
         except:
             continue
-    return _str
+    return _str.removeprefix('@')
 
 
 def collect_staff(text):

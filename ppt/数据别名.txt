@@ -1,0 +1,21 @@
+# 如果ppt中出现的变量名（包括参数）过长，可以使用别名缩短
+# 如设置 nt=int pres:new_total + 则ppt中的{nt}将会被视为{int pres:new_total +}
+
+nt = int pres:new_total
+cntd = colorint pres:new_total_$delta +
+ot = int pres:ori_total
+cotd = colorint pres:ori_total_$delta
+pv = int pres:view ,
+cpvd = colorint pres:view_$delta , +
+pd = int pres:danmuku ,
+cpdd = colorint pres:danmuku_$delta , +
+pr = int pres:reply ,
+cprd = colorint pres:reply_$delta , +
+pf = int pres:favorite ,
+cpfd = colorint pres:favorite_$delta , +
+pc = int pres:coin ,
+cpcd = colorint pres:coin_$delta , +
+ps = int pres:share ,
+cpsd = colorint pres:share_$delta , +
+pl = int pres:like ,
+cpld = colorint pres:like_$delta , +

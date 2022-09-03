@@ -152,7 +152,7 @@ def match(rank: int, index: int, start_time: datetime.datetime, pres_list: list[
         if i % 100 == 0:
             print('正在处理第' + str(i) + '/' + str(len(pres_list)) + '条记录……')
             # 匹配并计算相关数据
-            #if row_pres[header['aid']] == row_prev[header['aid']]:
+            #if row_pres[_header['aid']] == row_prev[_header['aid']]:
         if int(row_pres['aid']) in prev_dict.keys():
             row_prev = prev_dict[int(row_pres['aid'])]
             row_pres[header['上次']] = row_prev[header['名次']]
@@ -170,10 +170,10 @@ def match(rank: int, index: int, start_time: datetime.datetime, pres_list: list[
             row_pres[header['Last Pt']] = '——'
             post_time = row_pres.pub_time_datetime
             """try:
-                post_time = time.strptime(row_pres[header['投稿时间']], '%Y/%m/%d %H:%M')
+                post_time = time.strptime(row_pres[_header['投稿时间']], '%Y/%m/%d %H:%M')
             except ValueError:
-                post_time = time.strptime(row_pres[header['投稿时间']], '%Y-%m-%d %H:%M')
-                row_pres[header['投稿时间']] = time.strftime('%Y/%m/%d %H:%M', post_time)"""
+                post_time = time.strptime(row_pres[_header['投稿时间']], '%Y-%m-%d %H:%M')
+                row_pres[_header['投稿时间']] = time.strftime('%Y/%m/%d %H:%M', post_time)"""
             row_pres[header['投稿时间']] = time.strftime('%Y/%m/%d %H:%M', row_pres.pub_time_time_struct)
             if post_time > start_time:
                 row_pres[header['上次']] = 'NEW'

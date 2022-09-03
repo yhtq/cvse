@@ -26,6 +26,7 @@ def generate(data: list[CVSE_Data.Data],
              end_flag: tuple[str, str] = None,
              valid: callable(CVSE_Data.Data) = lambda x: True):
     # 调用TEditor生成模板，ted_type是类型（需要调用的ted文件类型），path是生成模板存放目录（可以使相对主目录路径或绝对路径），end_flag是(key,value)，表示生成截止到data[key]==value时
+    TEditor = config['TEditor']
     if not status:
         return
     if not os.path.exists(out_path):
@@ -34,7 +35,7 @@ def generate(data: list[CVSE_Data.Data],
     if ted_type not in ted_path.keys():
         print("没有找到ted文件")
         return
-    temp_writer, save = CVSE_Data.Data.write_to_csv_wrapper(os.path.join(TEditor_dir, "temp.csv"), header=csv_header)
+    temp_writer, save = CVSE_Data.Data.write_to_csv_wrapper(os.path.join(TEditor_dir, "temp.csv"), _header=csv_header)
     count: int = 0
     for i in data:
         if not valid(i):
@@ -45,16 +46,25 @@ def generate(data: list[CVSE_Data.Data],
             if i[end_flag[0]] == end_flag[1]:
                 break
     save()
+    out_path = os.path.abspath(out_path)
+    ted_path[ted_type] = os.path.abspath(ted_path[ted_type])
+    data_path = os.path.abspath(os.path.join(TEditor_dir, "temp.csv"))
+    TEditor = os.path.abspath(TEditor)
+    pres_path = os.path.abspath(os.getcwd())
+    os.chdir(TEditor_dir)
     try:
-        subprocess.run([TEditor,
-                        "batchgen",
-                        '-d', os.path.join(TEditor_dir, "temp.csv"),
-                        '-i', ted_path[ted_type],
-                        '-o', out_path,
-                        '-n', ted_type + '_{index}',
-                        '-s', '1',
-                        '-e', str(count)],
-                       check=True,
+        args = [TEditor,
+                "batchgen",
+                '-d', data_path,
+                '-i', ted_path[ted_type],
+                '-o', out_path,
+                '-n', ted_type + '_{index}',
+                '-s', '1',
+                '-e', str(count)]
+        if ted_type == 'new_side':
+            args += ['-r', '5', '-y', '163']
+        #print(args)
+        subprocess.run(args,
                        stdout=subprocess.PIPE,
                        encoding='gbk'
                        )
@@ -63,6 +73,8 @@ def generate(data: list[CVSE_Data.Data],
         print("模板生成失败")
         return
     finally:
-        os.remove(os.path.join(TEditor_dir, "temp.csv"))
+        os.remove(data_path)
+        pass
+    os.chdir(pres_path)
     print(f'{ted_type}模板生成完成')
     return
