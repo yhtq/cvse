@@ -1,26 +1,25 @@
 # coding=utf-8
 import csv
 import webbrowser
-import requests
-import json
-import time
-import datetime
 import dateutil.relativedelta
+
+import CVSE_Data
+from Rank_data import calculate_time, calculate_index, Rank_data, Rank_data_delta
 from 主榜_包装 import generate
-import os
 import openpyxl as op
 import collect_staff
-import CVSE_Data
 import match
 from collections.abc import Callable
 from downloader import *
 from 副榜_包装 import *
 
 DEBUG = False
-header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '时长', '分P数', '播放增量', '弹幕增量', '评论增量', '收藏增量', '硬币增量', '分享增量',
+header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '时长', '分P数', '播放增量', '弹幕增量', '评论增量',
+          '收藏增量', '硬币增量', '分享增量',
           '点赞增量', 'Pt', '修正A', '修正B', '修正C', '长期入榜及期数', '收录', "引擎", '原创', "主榜", 'Last Pt',
           'rate', 'staff', '新曲排名', '新曲', '未授权搬运', '已删稿', 'HOT']
-engine = {1: 'Sharpkey', 2: 'DeepVocal', 3: 'MUTA', 4: '袅袅虚拟歌手', 5: 'AISingers', 6: 'X Studio', 7: '跨引擎', 8: 'Vogen',
+engine = {1: 'Sharpkey', 2: 'DeepVocal', 3: 'MUTA', 4: '袅袅虚拟歌手', 5: 'AISingers', 6: 'X Studio', 7: '跨引擎',
+          8: 'Vogen',
           9: 'VocalSharp'}
 flag = 0
 rank_trans = {0: "C", 1: "SV", 2: "U"}
@@ -61,31 +60,6 @@ def _input(text: str, valid: callable(str), default=None):
         print('输入格式错误')
         result = input(text)
     return result
-
-
-def calculate_time(_rank: int, _index: int) -> (datetime.datetime, datetime.datetime):
-    if _rank == 0:  # 国产榜
-        basic_time_start = datetime.datetime.strptime("2021/04/28 3:00", "%Y/%m/%d %H:%M")
-        basic_time_end = datetime.datetime.strptime("2021/05/28 3:00", "%Y/%m/%d %H:%M")
-        time_start = basic_time_start + dateutil.relativedelta.relativedelta(months=_index - 48)
-        time_end = basic_time_end + dateutil.relativedelta.relativedelta(months=_index - 48)
-        return time_start, time_end
-    if _rank == 1:  # SV刊
-        basic_time_start = datetime.datetime.strptime("2021/11/26 3:00", "%Y/%m/%d %H:%M")
-        basic_time_end = datetime.datetime.strptime("2021/12/03 3:00", "%Y/%m/%d %H:%M")
-        time_start = basic_time_start + datetime.timedelta(weeks=_index - 132)
-        time_end = basic_time_end + datetime.timedelta(weeks=_index - 132)
-        return time_start, time_end
-
-
-def calculate_index(_rank: int, time_start: datetime.datetime) -> int:
-    if _rank == 0:
-        temp = dateutil.relativedelta.relativedelta(dt1=time_start,
-                                                    dt2=datetime.datetime.strptime("2021/04/28 3:00", "%Y/%m/%d %H:%M"))
-        return temp.years * 12 + temp.months + 48
-    if _rank == 1:
-        temp = time_start - datetime.datetime.strptime("2021/11/26 3:00", "%Y/%m/%d %H:%M")
-        return temp.days // 7 + 132
 
 
 def tag_info_decorator(func: Callable):
@@ -184,6 +158,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         self.desc: str = ""
         self.tag: list[str] = []
         self.title: str = ''
+        self['主榜'] = ''  # 重新计算主榜
         self['上次'] = '——'
         if flag and self.dict_['收录'] == '':
             self.dict_['收录'] = 1
@@ -199,6 +174,10 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             else:
                 self.dict_['新曲'] = ''
                 self.dict_['收录'] = 1
+        else:
+            print(f'未找到投稿时间，{self.dict_["aid"]} ')
+            input('按任意键退出')
+            raise ValueError
         if str(self.dict_['aid']) in remove_list:
             self.dict_['收录'] = 0
         if 0 in self.dict_.keys():
@@ -230,7 +209,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         if self['引擎'] == '':
             if Pres_data.rank == 0:
                 self['引擎'] = _input("引擎为：1=SK 2=DV 3=Muta 4=袅袅 5=AiSinger 6=Xstudio 7=跨引擎\n",
-                                    lambda x: x.isdigit() and int(x) in list(range(1, 8)))
+                                      lambda x: x.isdigit() and int(x) in list(range(1, 8)))
                 self['引擎'] = engine[int(self['引擎'])]
                 _staff += f"{self['引擎']}  |  "
             else:
@@ -279,7 +258,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
                     self.get_staff(not browser_flag)
                     if self['原创'] == '其他':
                         self['原创'] = ''
-            if place > Pres_data.max_count_main and self['原创'] == '原创':
+            if place > Pres_data.max_count_main and self['原创'] == '原创' and self.is_new():
                 self['原创'] = '榜外原创'
 
         def rank_info_confirm() -> None:
@@ -306,7 +285,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             if Pres_data.rank == 0:
                 #  国产榜
                 self['引擎'] = _input("引擎为：1=SK 2=DV 3=Muta 4=袅袅 5=AiSinger 6=Xstudio 7=跨引擎 8=Vogen 9=V#\n",
-                                    lambda x: x.isdigit() and int(x) in list(range(1, 8)))
+                                      lambda x: x.isdigit() and int(x) in list(range(1, 8)))
                 self['引擎'] = engine[int(self['引擎'])]
             else:
                 self['引擎'] = rank_trans[Pres_data.rank]
@@ -366,7 +345,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             if Pres_data.rank == 0 and self['staff']:
                 temp_list: list[str] = self['staff'].split('  |  ')
                 _engine = temp_list[0]
-                if _engine in engine.values():
+                if _engine in engine.values() and self['引擎'] == '':
                     self['引擎'] = _engine
             rank_info_confirm()
             staff_info_confirm(browser_flag=bool(browser_flag))
@@ -391,46 +370,13 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         else:
             return place + 1, new_place, info_input_flag
 
-
-class Rank_data:
-    data_list = ['播放', '弹幕', '评论', '收藏', '硬币', '分享', '点赞']
-    engine_list = ['袅袅虚拟歌手', 'MUTA', 'Sharpkey', 'DeepVocal', 'AISingers', 'X Studio', 'VocalSharp', 'Vogen', '跨引擎']
-
-    # 应正佬要求按发布时间排序引擎
-
-    def __init__(self, data: list[CVSE_Data.Data]):
-        self.Data_list = data
-        self.count = {i: 0 for i in Rank_data.data_list + ['新曲']}  # 只需计数
-        for i in Rank_data.engine_list + ['原创']:
-            self.count[i] = 0
-        self.aid_list = {i: [] for i in Rank_data.engine_list + ['原创']}  # 需减去上期
-        for i in self.Data_list:
-            if i['收录'] == 0:
-                continue
-            for j in Rank_data.data_list:
-                self.count[j] += i[j + '增量']
-            if i['原创'] in ['原创', '榜外原创']:
-                self.aid_list['原创'] += [i['aid']]
-                self.count['原创'] += 1
-            if i.is_new():
-                self.count['新曲'] += 1
-            if i['引擎'] in Rank_data.engine_list:
-                self.count[i['引擎']] += 1
-                self.aid_list[i['引擎']].append(i['aid'])
-
-
-class Rank_data_delta:
-    def __init__(self, pres_data: Rank_data, prev_data: Rank_data):
-        self.data_delta = {}
-        self.data_new = {}
-        for key in Rank_data.data_list + ['新曲']:
-            self.data_delta[key] = pres_data.count[key] - prev_data.count[key]
-        for key in Rank_data.engine_list + ['原创']:
-            pres_new_count = [1 for i in pres_data.aid_list[key] if i not in prev_data.aid_list[key]]
-            self.data_delta[key] = sum(pres_new_count) - prev_data.count[key]
-            self.data_new[key] = sum(pres_new_count)
-        self.data_delta['其他/跨引擎'] = self.data_delta['跨引擎']
-        self.data_new['其他/跨引擎'] = self.data_new['跨引擎']
+    def is_new(self) -> bool:
+        if super().is_new():
+            return True
+        elif '投稿时间' in self.dict_:
+            return Pres_data.end_time > self.pub_time_datetime > Pres_data.start_time
+        else:
+            return False
 
 
 def to_str_with_delta(pres_data: Rank_data, prev_data: Rank_data):
@@ -467,8 +413,9 @@ def init() -> tuple[list[Pres_data], int, int, str]:
     text: str = f'请输入待处理文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n输入1自动下载原始数据文件或读取已下载的原始数据文件'
     if os.path.exists(f'{default_dir}/{rank_trans[rank]}_{index}_save_backup.csv'):
 
-        file = input(f'请输入待处理文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索, '
-                     f'默认为{rank_trans[rank]}_{index}_save_backup.csv\n') or f'{rank_trans[rank]}_{index}_save_backup.csv'
+        file = input(
+            f'请输入待处理文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索, '
+            f'默认为{rank_trans[rank]}_{index}_save_backup.csv\n') or f'{rank_trans[rank]}_{index}_save_backup.csv'
     else:
         file = input(text)
     while not os.path.exists(file):
@@ -516,7 +463,8 @@ def read_last(rank: int, index: int):
             file = f'{default_dir}/' + file
             break
         print('文件不存在')
-        file = input(f'请输入上期排行榜的文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n')
+        file = input(
+            f'请输入上期排行榜的文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n')
     return CVSE_Data.read(file, class_type=CVSE_Data.Data)
 
 
@@ -598,6 +546,7 @@ for i in ['cover', 'side_cover']:
     if not os.path.exists(i):
         os.mkdir(i)
 pres_list, _rank, _index, _default_dir = init()
+prev_list: list[CVSE_Data.Data] = []
 if with_match:
     prev_list = read_last(_rank, int(_index) - 1)
     print('开始与上期数据进行匹配')
@@ -632,7 +581,8 @@ write_xlsx, save = CVSE_Data.Data.write_to_xlsx_wrapper(f'{_default_dir}/{rank_t
                                                         header=CVSE_Data.xlsx_header)
 write_xlsx_, save_ = CVSE_Data.Data.write_to_xlsx_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}.xlsx',
                                                           header=CVSE_Data.xlsx_header)
-outfile_header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '时长', '分P数', '播放增量', '弹幕增量', '评论增量', '收藏增量', '硬币增量',
+outfile_header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '时长', '分P数', '播放增量', '弹幕增量',
+                  '评论增量', '收藏增量', '硬币增量',
                   '分享增量',
                   '点赞增量', 'Pt', '修正A', '修正B', '修正C', 'Last Pt', 'rate', '长期入榜及期数', '新曲排名']
 backup_writer, backup_save = CVSE_Data.Data.write_to_csv_wrapper(
@@ -648,7 +598,7 @@ for idx, i in enumerate(pres_list):
     backup_writer(i)
     if with_template_generate:
         if str(i['收录']) != '0' and i['HOT'] != 'HOT':
-            if Pres_data.rank == 1 and int(i['名次']) <= Pres_data.max_count_side:    # SV只做副榜，新曲榜副榜另做
+            if Pres_data.rank == 1 and int(i['名次']) <= Pres_data.max_count_side:  # SV只做副榜，新曲榜副榜另做
                 outfile_writer(i)
             else:
                 outfile_writer(i)
@@ -672,8 +622,8 @@ if with_match:
     while write_long_term_xlsx(i.__next__()):
         pass
     save(f'data_{rank_trans[Pres_data.rank]}.xlsx')
-    pres_rank_data = Rank_data(pres_list)
-    prev_rank_data = Rank_data(prev_list)
+    pres_rank_data = Rank_data(pres_list, Pres_data.index, Pres_data.rank)
+    prev_rank_data = Rank_data(prev_list, Pres_data.index - 1, Pres_data.rank)
     rank_information = to_str_with_delta(pres_rank_data, prev_rank_data)
     print(rank_information)
     with open(f'{_default_dir}/{rank_trans[_rank]}_{_index}_数据信息.txt', 'w') as f:

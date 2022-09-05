@@ -63,7 +63,7 @@ class Data:
     int_data = ['aid', 'mid', '时长', '分P数', '播放增量', '弹幕增量', '评论增量', '收藏增量', '硬币增量', '分享增量',
                 '点赞增量', '长期入榜及期数', '收录', '新曲排名', '已删稿']
     float_data = ['Pt', '修正A', '修正B', '修正C']
-    ignore = ['HOT', '新曲排名', '长期入榜及期数', "主榜"]  # 这些列不读入数据
+    ignore = ['HOT', '新曲排名', '长期入榜及期数']  # 这些列不读入数据
 
     @staticmethod
     def write_to_xlsx_wrapper(file_name: str, header: list['str'] | str = None):
@@ -239,6 +239,8 @@ class Data:
                 self.dict_[i] = ''
         if str(self.dict_.get('原创')) == '1':
             self.dict_['原创'] = '原创'
+        if self['原创'] == '榜外原创':
+            self.dict_['原创'] = '原创' # 榜外原创不需要额外标注，当期榜外原创由当期收录程序计算
         if not (isinstance(self['aid'], int) or self['aid'].isdigit()):
             self.valid = False
         else:
@@ -305,6 +307,9 @@ class Data:
                 self.dict_['引擎'] = '袅袅虚拟歌手'
             elif self.dict_['引擎'].lower() == 'xstudio' or self.dict_['引擎'].lower() == 'x studio':
                 self.dict_['引擎'] = 'X Studio'
+        self.dict_['pub_time'] = self.pub_time_datetime
+        if str(self['原创']) == '0':
+            self.dict_['原创'] = '其他'
 
     def write_to_csv(self,
                      file_name: str,

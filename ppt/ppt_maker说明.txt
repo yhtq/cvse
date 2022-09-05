@@ -49,9 +49,20 @@ data的格式如下：
                     favorite 总收藏量
                     coin 总硬币量
                     share 总分享量
+                    like 总点赞量
                     startpt 主榜起分
                     top1_view 最高播放量
                     side_startpt 副榜起分
+                以下是国产榜限定属性，各引擎新曲数量
+                    袅袅虚拟歌手
+                    MUTA
+                    Sharpkey
+                    DeepVocal
+                    AISingers
+                    X Studio
+                    VocalSharp
+                    Vogen
+                    跨引擎
             2. 视频信息类，如prev:first，表示上期第一名
                 拥有的属性为；
                     aid av号（纯整数，不带av）
