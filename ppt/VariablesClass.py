@@ -18,28 +18,24 @@ with open('color.txt', 'r', encoding='utf-8') as f:
                 continue
             color_map[int(line[0])] = temp_list[0], temp_list[1]
 
-
-class BaseColor(metaclass=ABCMeta):
-    def __init__(self, *args, **kwargs):
-        self.color_set: Optional[tuple] = None
-
-    def is_positive(self) -> bool:
-        raise NotImplementedError
-
-    def get_color(self):
-        return self.color_set[0] if self.is_positive() else self.color_set[1]
-
-
-T = TypeVar('T', int, float)
+T = TypeVar('T', int, float, datetime)
 
 
 class BaseValue(metaclass=ABCMeta):
+    # 基础值类，所有值类的基类
     def __init__(self, *args, **kwargs):
         self.value: Optional[T] = None
         self.format_list: Optional[list[str]] = None
 
+    def with_color(self) -> bool:
+        return False
+
     def is_positive(self) -> bool:
         return self.value >= 0
+
+    def get_color(self) -> str:
+        print(f'Invalid call: {self.__class__.__name__}.get_color()')
+        return ''
 
     def __str__(self) -> str:
         if not self.format_list:
@@ -60,8 +56,7 @@ class BaseValue(metaclass=ABCMeta):
                         format_str += j
                         valid_list.append(j)
             if set(valid_list) != set(self.format_list):
-                print(f'Invalid format: {self.format_list}')
-                raise ValueError(f'Invalid format: {self.format_list}')
+                raise ValueError(f'Invalid format: {self.format_list} for {self.value} of type {type(self.value)}')
             if isinstance(self.value, int):
                 format_str += 'd}'
             elif isinstance(self.value, float):
@@ -75,6 +70,19 @@ class BaseValue(metaclass=ABCMeta):
                 print(e)
                 print(f'Invalid format: {self.format_list}')
                 return f'{self.value}'
+
+
+class BaseColor(BaseValue, metaclass=ABCMeta):
+    # 有颜色的值
+    def __init__(self, *args, **kwargs):
+        super(BaseColor, self).__init__(*args, **kwargs)
+        self.color_set: Optional[tuple] = None
+
+    def get_color(self):
+        return self.color_set[0] if self.is_positive() else self.color_set[1]
+
+    def with_color(self):
+        return True
 
 
 class IntValue(BaseValue):
@@ -98,18 +106,26 @@ def get_ColorValue_class(index: int, value_type: str) -> type:
             def __init__(self, value, *args: Optional[str], **kwargs):
                 super().__init__(value, *args, **kwargs)
                 self.color_set: tuple = color_set
+
+            def with_color(self):
+                return True
     elif value_type == 'float':
         class ColorValue(FloatValue, BaseColor):
             def __init__(self, value, *args: Optional[str], **kwargs):
                 super().__init__(value, *args, **kwargs)
                 self.color_set: tuple = color_set
+
+            def with_color(self):
+                return True
     else:
         raise ValueError(f'Invalid value type: {value_type}')
+    #print(ColorValue.__mro__)
     return ColorValue
 
 
-class Time:
+class Time(BaseValue):
     def __init__(self, value: datetime, time_format: str, *args, **kwargs):
+        super().__init__()
         self.value: datetime = value
         try:
             self.time_format: str = self.value.strftime(time_format)
@@ -119,7 +135,10 @@ class Time:
     def __str__(self) -> str:
         return self.time_format
 
+    def is_positive(self) -> bool:
+        print('时间量没有正负之分')
+        return True
 
-func = get_ColorValue_class(1, 'float')
-print(func(1232.66575, '+', ',', '.5%'))
+# func = get_ColorValue_class(1, 'float')
+# print(func(1232.66575, '+', ',', '.5%'))
 # print(ColorValue(123234, ('red', 'green'), '+', ','))

@@ -4,6 +4,8 @@ import copy
 import csv
 import time
 import datetime
+from datetime import datetime
+
 import openpyxl as op
 from collections.abc import Callable
 from typing import Callable, ParamSpec, ParamSpecArgs, ParamSpecKwargs, Concatenate, TypeVar
@@ -51,6 +53,7 @@ def permission_access_decorator(func: Callable[[Concatenate[str, P]], T]) -> Cal
 
 
 class Data:
+    pub_time_datetime: datetime
     main_flag = 0  # 主榜/副榜 flag
     header_word_to_digit = {'名次': 0, '上次': 1, 'aid': 2, '标题': 3, 'mid': 4, 'up主': 5,
                             '投稿时间': 6, '时长': 7, '分P数': 8, '播放增量': 9, '弹幕增量': 10,
@@ -258,12 +261,12 @@ class Data:
         else:
             self.pub_time_time_struct = time.strptime('1970/01/01 00:00:10', '%Y/%m/%d %H:%M:%S')
         if '投稿时间' in self.dict_.keys():
-            if isinstance(self.dict_['投稿时间'], datetime.datetime):
+            if isinstance(self.dict_['投稿时间'], datetime):
                 self.pub_time_datetime = self['投稿时间']
                 self['投稿时间'] = self.dict_['投稿时间'].strftime('%Y-%m-%d %H:%M')
                 self.pub_time_time_struct = time.strptime(self.dict_['投稿时间'], '%Y-%m-%d %H:%M')
             else:
-                self.pub_time_datetime = datetime.datetime.fromtimestamp(time.mktime(self.pub_time_time_struct))
+                self.pub_time_datetime = datetime.fromtimestamp(time.mktime(self.pub_time_time_struct))
                 self.dict_['投稿时间'] = time.strftime('%Y/%m/%d %H:%M', self.pub_time_time_struct)
         for key in header + self.file_header:
             if key not in self.dict_.keys() or self.dict_[key] is None:
@@ -421,7 +424,12 @@ class Data:
 
     def __lt__(self, other):
         if (self['HOT'] != 'HOT' and other['HOT'] != 'HOT') or (self['HOT'] == 'HOT' and other['HOT'] == 'HOT'):
-            return float(self['Pt']) < float(other['Pt'])
+            if float(self['Pt']) != float(other['Pt']):
+                return float(self['Pt']) < float(other['Pt'])
+            elif '投稿时间' in self.dict_.keys() and '投稿时间' in other.dict_.keys():
+                return self.pub_time_datetime < other.pub_time_datetime
+            else:
+                return True
         else:
             if self['HOT'] == 'HOT':
                 return False

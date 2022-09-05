@@ -23,6 +23,8 @@ def side_generate(*args):
 
 def move_file(ori_path: str, target_dir: str):
     # 移动生成的模板
+    if not os.path.exists(target_dir):
+        os.mkdir(target_dir)
     file_list: list[str] = os.listdir(ori_path)
     for file in file_list:
         if file == '.gitkeep':

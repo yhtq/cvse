@@ -650,6 +650,8 @@ for idx, i in enumerate(pres_list):
         if str(i['收录']) != '0' and i['HOT'] != 'HOT':
             if Pres_data.rank == 1 and int(i['名次']) <= Pres_data.max_count_side:    # SV只做副榜，新曲榜副榜另做
                 outfile_writer(i)
+            else:
+                outfile_writer(i)
     if idx % 100 == 0:
         print(f'正在写入第{idx}条数据')
 save()
@@ -692,10 +694,10 @@ if with_template_generate:
     trans = lambda x: int((3 * x ** 2 - 5 * x + 4) / 2)  # 只是转换一下两边的序号
     print("正在生成副榜模板")
     side_generate(trans(Pres_data.rank), Pres_data.max_count_main + 1, Pres_data.max_count_side)
-    move_file('side', f'{_default_dir}/模板')
+    move_file('side', f'{_default_dir}/模板/副榜')
     if Pres_data.rank == 1:
         generate(pres_list, 'new_side', CVSE_Data.xlsx_header,
-                 out_path=os.path.join(_default_dir, '模板'),
+                 out_path=os.path.join(_default_dir, '模板', '副榜新曲榜'),
                  valid=lambda x: x['收录'] and x.is_new() and int(x['名次']) > Pres_data.max_count_side)
     print('模板生成完成')
 
