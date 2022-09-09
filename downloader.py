@@ -78,6 +78,7 @@ def download_face(mid, img_name):
 
 def download_pres_data(end_time: datetime.datetime, rank: int, index: int, address: str) -> int:
     # 返回是否正常下载
+    # 原始数据
     # 下载文件路径为 {address}/{index}.csv
     if os.path.exists(f'{address}/{index}.csv'):
         return 1
@@ -98,6 +99,7 @@ def download_pres_data(end_time: datetime.datetime, rank: int, index: int, addre
 
 def download_history_data(end_time: datetime.datetime, rank: int, index: int, address: str) -> int:
     # 返回是否正常下载
+    # 完成数据
     # 下载文件路径为 {address}/{index}.xlsx
     if os.path.exists(f'{address}/{index}.xlsx'):
         return 1

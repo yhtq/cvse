@@ -42,13 +42,33 @@ class BaseValue(metaclass=ABCMeta):
             return f'{self.value}'
         else:
             if isinstance(self.value, int):
-                mark_order: list[str] = [r'\+', r'\,']
+                mark_order: list[str] = ['fill', 'align', r'\+', 'width', r'\,']
             elif isinstance(self.value, float):
-                mark_order: list[str] = [r'\+', r'\,', r'\.\d', r'\.\d%']
+                mark_order: list[str] = ['fill', 'align', r'\+', r'\,', r'\.\d', 'width', r'\.\d%']
             else:
                 raise TypeError
             valid_list: list[str] = []
             format_str: str = '{:'
+            align_flag: bool = False
+            align_arg: str = ''
+            for i in self.format_list:
+                result = re.match(r'(\S)([<>])(\d+)', i)
+                # 由于顺序问题，这里必须先对对齐方式进行处理，将其拆散，才能符合python的格式化语法
+                if result:
+                    if align_flag or result.group(0) != i:
+                        # 防止输入重复格式
+                        raise ValueError('Duplicate align format')
+                    else:
+                        align_flag = True
+                        align_arg = i
+                        self.format_list.append(result.group(1))
+                        self.format_list.append(result.group(2))
+                        self.format_list.append(result.group(3))
+                        mark_order[mark_order.index('fill')] = result.group(1)
+                        mark_order[mark_order.index('align')] = result.group(2)
+                        mark_order[mark_order.index('width')] = result.group(3)
+            if align_flag:
+                self.format_list.remove(align_arg)
             for i in mark_order:
                 for j in self.format_list:
                     result = re.search(i, j)
@@ -56,7 +76,7 @@ class BaseValue(metaclass=ABCMeta):
                         format_str += j
                         valid_list.append(j)
             if set(valid_list) != set(self.format_list):
-                raise ValueError(f'Invalid format: {self.format_list} for {self.value} of type {type(self.value)}')
+                raise ValueError(f'Invalid format: {self.format_list} for Value: {self.value} of type {type(self.value)}')
             if isinstance(self.value, int):
                 format_str += 'd}'
             elif isinstance(self.value, float):
@@ -64,12 +84,7 @@ class BaseValue(metaclass=ABCMeta):
                     format_str += '}'
                 else:
                     format_str += 'f}'
-            try:
-                return format_str.format(self.value)
-            except ValueError as e:
-                print(e)
-                print(f'Invalid format: {self.format_list}')
-                return f'{self.value}'
+            return format_str.format(self.value)
 
 
 class BaseColor(BaseValue, metaclass=ABCMeta):

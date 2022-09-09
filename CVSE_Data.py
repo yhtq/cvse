@@ -173,8 +173,12 @@ class Data:
 
         return write_to_csv, save_close
 
-    def __init__(self, data: dict | list | tuple, data_type: str, file_header: list = None):
+    def __init__(self, data: dict | list | tuple, data_type: str, file_header: list[str] = None, required_keys: list[str] = None):
         # data_type必须为"xlsx"或“csv", data 是tuple, list, dict其中之一，前两者要求提供列索引(list)，
+        self.dict_: dict[str] = {}
+        if required_keys is None:
+            required_keys = ['aid']
+        self.required_keys = required_keys
         if file_header is None:
             self.file_header = [0]
         else:
@@ -215,21 +219,17 @@ class Data:
                     pass
                 try:
                     if not k.border.bottom is None:
-                        if k.border.bottom.style == 'medium':
+                        if k.border.bottom.style is not None:
+                            #print(Data.main_flag)
                             if not Data.main_flag:
+                                # print(k.value)
                                 dict_['主榜'] = '主榜截止'  # 主榜到此截止
-                                Data.main_flag = 1
+                                # print(self['title'])
                             else:
                                 dict_['主榜'] = '副榜截止'  # 副榜截止
-                                Data.main_flag = 0
                 except AttributeError:
                     pass
             self.dict_ = dict_
-            if 'aid' not in self.dict_.keys():
-                print('没有找到aid')
-                print(data)
-                input()
-                raise ValueError
         else:
             print('文件格式错误')
             input()
@@ -237,10 +237,6 @@ class Data:
         for i in Data.ignore:
             if i in self.dict_.keys():
                 self.dict_[i] = ''
-        if str(self.dict_.get('原创')) == '1':
-            self.dict_['原创'] = '原创'
-        if self['原创'] == '榜外原创':
-            self.dict_['原创'] = '原创' # 榜外原创不需要额外标注，当期榜外原创由当期收录程序计算
         if not (isinstance(self['aid'], int) or self['aid'].isdigit()):
             self.valid = False
         else:
@@ -307,9 +303,28 @@ class Data:
                 self.dict_['引擎'] = '袅袅虚拟歌手'
             elif self.dict_['引擎'].lower() == 'xstudio' or self.dict_['引擎'].lower() == 'x studio':
                 self.dict_['引擎'] = 'X Studio'
+            elif self.dict_['引擎'] == '其他':
+                self.dict_['引擎'] = '其他/跨引擎'
         self.dict_['pub_time'] = self.pub_time_datetime
+        if str(self.dict_.get('原创')) == '1':
+            self.dict_['原创'] = '原创'
+        if self['原创'] == '榜外原创':
+            self.dict_['原创'] = '原创'  # 榜外原创不需要额外标注，当期榜外原创由当期收录程序计算
         if str(self['原创']) == '0':
             self.dict_['原创'] = '其他'
+        if self['主榜'] == '主榜截止':
+            Data.main_flag = 1
+        elif self['主榜'] == '副榜截止':
+            Data.main_flag = 0
+        for i in required_keys:
+            if i not in self.dict_.keys():
+                print(f'缺少关键字{i}')
+                input()
+                raise ValueError
+            elif self.dict_[i] == '':
+                print(f'关键字{i}为空')
+                input()
+                raise ValueError
 
     def write_to_csv(self,
                      file_name: str,
@@ -444,13 +459,24 @@ class Data:
     def is_same_song(self, other):
         return int(self['aid']) == int(other['aid'])
 
+    def __contains__(self, item):
+        return item in self.dict_.keys()
+
 
 Data_type = TypeVar('Data_type')
 
 
 @permission_access_decorator
-def read(file_path: str, class_type: Data_type, max_rank: int = -1) -> list[Data_type]:
+def read(file_path: str,
+         class_type: Data_type = Data,
+         max_rank: int = -1,
+         required_keys: list[str] = None) -> list[Data_type]:
     data_list = []
+    Data.main_flag = 0
+    if not issubclass(class_type, Data):
+        print('class_type必须为Data的子类')
+        input()
+        raise ValueError
     if file_path.split('.')[-1] == 'csv':
         try:
             with open(file_path, 'r') as f:
@@ -459,7 +485,7 @@ def read(file_path: str, class_type: Data_type, max_rank: int = -1) -> list[Data
                     progress = int(g * 100 / reader.line_num)
                     if progress % 10 == 0:
                         print(f'{progress}%')
-                    new_data = class_type(i, 'csv')
+                    new_data = class_type(i, 'csv', required_keys=required_keys)
                     if new_data.valid:
                         data_list.append(new_data)
                         if (str(new_data['名次']) == str(max_rank)) and (max_rank != -1):
@@ -471,7 +497,7 @@ def read(file_path: str, class_type: Data_type, max_rank: int = -1) -> list[Data
                     progress = int(g * 100 / reader.line_num)
                     if progress % 10 == 0:
                         print(f'{progress}%')
-                    new_data = class_type(i, 'csv')
+                    new_data = class_type(i, 'csv', required_keys=required_keys)
                     if new_data.valid:  # 避免空行
                         data_list.append(new_data)
                         if (str(new_data['名次']) == str(max_rank)) and (max_rank != -1):
@@ -491,7 +517,7 @@ def read(file_path: str, class_type: Data_type, max_rank: int = -1) -> list[Data
             if progress % 10 == 0 and progress != last_process:
                 print(str(progress) + '%')
                 last_process = progress
-            new_data = class_type(row, 'xlsx', xlsx_order)
+            new_data = class_type(row, 'xlsx', xlsx_order, required_keys=required_keys)
             if new_data.valid:
                 data_list.append(new_data)
             if (str(new_data['名次']) == str(max_rank)) and (max_rank != -1):
@@ -502,3 +528,14 @@ def read(file_path: str, class_type: Data_type, max_rank: int = -1) -> list[Data
         raise RuntimeError
     print("读取完成")
     return data_list
+
+
+rank_trans = {0: "C", 1: "SV", 2: "U"}
+
+
+def _input(text: str, valid: callable(str), default=None):
+    result = input(text) or default
+    while result is None or not valid(result):
+        print('输入格式错误')
+        result = input(text)
+    return result

@@ -3,7 +3,7 @@ import csv
 import webbrowser
 import dateutil.relativedelta
 
-import CVSE_Data
+from CVSE_Data import rank_trans, _input
 from Rank_data import calculate_time, calculate_index, Rank_data, Rank_data_delta
 from 主榜_包装 import generate
 import openpyxl as op
@@ -22,7 +22,6 @@ engine = {1: 'Sharpkey', 2: 'DeepVocal', 3: 'MUTA', 4: '袅袅虚拟歌手', 5: 
           8: 'Vogen',
           9: 'VocalSharp'}
 flag = 0
-rank_trans = {0: "C", 1: "SV", 2: "U"}
 # max_main = {0: 20, 1: 25}
 # max_side = {0: 80, 1: 105}
 # new_rank_number: dict[int, int] = {0: 10, 1: 8}
@@ -52,14 +51,6 @@ else:
 @CVSE_Data.permission_access_decorator
 def remove(path: str):
     os.remove(path)
-
-
-def _input(text: str, valid: callable(str), default=None):
-    result = input(text) or default
-    while result is None or not valid(result):
-        print('输入格式错误')
-        result = input(text)
-    return result
 
 
 def tag_info_decorator(func: Callable):
@@ -383,10 +374,8 @@ def to_str_with_delta(pres_data: Rank_data, prev_data: Rank_data):
     data_delta = Rank_data_delta(pres_data, prev_data)
     key_list_1 = Rank_data.data_list + ['新曲']
     key_list_2 = Rank_data.engine_list + ['原创']
-    key_list_2[-2] = '其他/跨引擎'
     sign = lambda key: '+' if data_delta.data_delta[key] >= 0 else ''
-    temp_list = [f'{i}:{pres_data.count[i]}({sign(i)}{data_delta.data_delta[i]})' for i in key_list_1]
-    temp_list += [f'{i}:{data_delta.data_new[i]}({sign(i)}{data_delta.data_delta[i]})' for i in key_list_2]
+    temp_list = [f'{i}:{pres_data.count[i]}({sign(i)}{data_delta.data_delta[i]})' for i in key_list_1 + key_list_2]
     out_str = '\n'.join(temp_list)
     return out_str
 

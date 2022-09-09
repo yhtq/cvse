@@ -1,5 +1,6 @@
 import datetime
-from typing import List
+from abc import ABC
+from typing import List, Union
 
 import dateutil.relativedelta
 
@@ -19,6 +20,8 @@ def calculate_time(_rank: int, _index: int) -> (datetime.datetime, datetime.date
         time_start = basic_time_start + datetime.timedelta(weeks=_index - 132)
         time_end = basic_time_end + datetime.timedelta(weeks=_index - 132)
         return time_start, time_end
+    print("Error: Rank is not 0 or 1")
+    return None, None
 
 
 def calculate_index(_rank: int, time_start: datetime.datetime) -> int:
@@ -34,17 +37,44 @@ def calculate_index(_rank: int, time_start: datetime.datetime) -> int:
 def calculate_week(time: datetime.datetime) -> int:
     # 计算是当年第几周
     return time.isocalendar()[1]
-class Rank_data:
+
+
+class BaseRankData(ABC):
+    def __init__(self):
+        self.dict_for_replace = {}
+
+    def __getitem__(self, item):
+        if item in self.dict_for_replace:
+            return self.dict_for_replace[item]
+        else:
+            print(f'{self.__class__.__name__}对象中没有{item}这个属性')
+            print('按任意键继续')
+            input()
+            raise KeyError
+
+    def __contains__(self, item):
+        return item in self.dict_for_replace
+
+
+class Rank_data(BaseRankData):
     data_list: list[str] = ['播放', '弹幕', '评论', '收藏', '硬币', '分享', '点赞']
-    engine_list: list[str] = ['袅袅虚拟歌手', 'MUTA', 'Sharpkey', 'DeepVocal', 'AISingers', 'X Studio', 'VocalSharp', 'Vogen', '跨引擎']
+    engine_list: list[str] = ['袅袅虚拟歌手', 'MUTA', 'Sharpkey', 'DeepVocal', 'AISingers', 'X Studio', 'VocalSharp',
+                              'Vogen', '其他/跨引擎']
 
     # 应正佬要求按发布时间排序引擎
 
     def __init__(self, data: list[CVSE_Data.Data], index: int, rank: int):
+        super().__init__()
         self.index: int = index
         self.rank: int = rank
         self.Data_list = data
         self.time_start, self.time_end = calculate_time(rank, index)
+        for i in self.data_list:
+            if i + '增量' not in self.Data_list[0].required_keys:
+                print(f'第{index}期数据未保证包含{i}增量')
+                print('按任意键继续')
+                input()
+                raise KeyError
         self.count = {i: 0 for i in Rank_data.data_list + ['新曲']}  # 只需计数
         for i in Rank_data.engine_list + ['原创']:
             self.count[i] = 0
@@ -66,6 +96,8 @@ class Rank_data:
             if i['引擎'] in Rank_data.engine_list:
                 self.count[i['引擎']] += 1
                 self.aid_list[i['引擎']].append(i['aid'])
+        # try:
+        # print([i['主榜'] for i in self.Data_list])
         self.dict_for_replace: dict[str] = {
             'index': self.index,
             'start_time': self.time_start,
@@ -89,12 +121,33 @@ class Rank_data:
             'X Studio': self.count['X Studio'],
             'VocalSharp': self.count['VocalSharp'],
             'Vogen': self.count['Vogen'],
-            '跨引擎': self.count['跨引擎'],
-            'startpt': [i['Pt'] for i in self.Data_list if i['收录'] == 1 and i['主榜'] == '主榜截止'][0],
-            'side_startpt': [i['Pt'] for i in self.Data_list if i['收录'] == 1 and i['主榜'] == '副榜截止'][0],
-            'top1_view': max(filter(lambda x: x['收录'] == 1, data), key=lambda x: x['播放增量'])['播放增量'],
+            '其他/跨引擎': self.count['其他/跨引擎'],
+            'startpt': None,
+            'side_startpt': None,
+            'top1_view': self.Data_list[0],
+            'top1_view_value': self.Data_list[0]['播放增量']
         }
-        #print(self.dict_for_replace)
+        for i in filter(lambda x: x['收录'] == 1, data):
+            if i['主榜'] == '主榜截止':
+                self.dict_for_replace['startpt'] = i['Pt']
+            if i['主榜'] == '副榜截止':
+                self.dict_for_replace['side_startpt'] = i['Pt']
+            if int(i['播放增量']) > int(self.dict_for_replace['top1_view']['播放增量']):
+                self.dict_for_replace['top1_view'] = i  # 注意这里是歌曲对象不是播放量
+                self.dict_for_replace['top1_view_value'] = i['播放增量']
+        if self.dict_for_replace['startpt'] is None:
+            print(f'第{index}期榜单信息中没有主榜截止数据,请检查')
+            input('按任意键继续')
+            raise ValueError
+        if self.dict_for_replace['side_startpt'] is None:
+            print(f'第{index}期榜单信息中没有副榜截止数据,请检查')
+            input('按任意键继续')
+            raise ValueError
+        # except IndexError as e:
+        #    print(e)
+        #    print(f'读取第{index}期榜单信息时出现错误')
+        #    input('按任意键退出')
+        # print(self.dict_for_replace)
 
     def is_pres_new(self, song: CVSE_Data.Data) -> bool:
         # 是否当期新曲
@@ -103,19 +156,34 @@ class Rank_data:
         else:
             return False
 
-    def __getitem__(self, item):
-        return self.dict_for_replace[item]
 
+class Rank_data_delta(BaseRankData):
+    key_list = {
+        'new_total',
+        'ori_total',
+        'view',
+        'danmaku',
+        'reply',
+        'favorite',
+        'coin',
+        'share',
+        'like',
+        'startpt',
+        'top1_view_value',
+        'side_startpt'
+    }
 
-class Rank_data_delta:
     def __init__(self, pres_data: Rank_data, prev_data: Rank_data):
+        super().__init__()
         self.data_delta = {}
-        self.data_new = {}
-        for key in Rank_data.data_list + ['新曲']:
+        for key in Rank_data.data_list + ['新曲', '原创'] + Rank_data.engine_list:
             self.data_delta[key] = pres_data.count[key] - prev_data.count[key]
-        for key in Rank_data.engine_list + ['原创']:
-            pres_new_count = [1 for i in pres_data.aid_list[key] if i not in prev_data.aid_list[key]]
-            self.data_delta[key] = sum(pres_new_count) - prev_data.count[key]
-            self.data_new[key] = sum(pres_new_count)
-        self.data_delta['其他/跨引擎'] = self.data_delta['跨引擎']
-        self.data_new['其他/跨引擎'] = self.data_new['跨引擎']
+        self.dict_for_replace: dict[str, Union[int, float]] = {i: pres_data[i] - prev_data[i]
+                                                               for i in Rank_data_delta.key_list}
+
+
+class Rand_data_rate(Rank_data_delta):
+    def __init__(self, pres_data: Rank_data, prev_data: Rank_data):
+        super().__init__(pres_data, prev_data)
+        self.dict_for_replace: dict[str, float] = {i: float(self.dict_for_replace[i]) / float(prev_data[i])
+                                                   for i in Rand_data_rate.key_list}
