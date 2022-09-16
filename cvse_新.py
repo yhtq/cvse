@@ -144,8 +144,8 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
 
         return write_long_term_data, save_close
 
-    def __init__(self, data, data_type: str, file_header: list = None):
-        super(Pres_data, self).__init__(data, data_type, file_header)
+    def __init__(self, data, data_type: str, file_header: list = None, required_keys: list[str] = None):
+        super(Pres_data, self).__init__(data, data_type, file_header, required_keys)
         self.desc: str = ""
         self.tag: list[str] = []
         self.title: str = ''
