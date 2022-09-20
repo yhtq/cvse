@@ -1,18 +1,14 @@
 # coding=utf-8
 import csv
 import webbrowser
-import requests
-import json
-import time
-import datetime
+
 import dateutil.relativedelta
-from 主榜_包装 import generate
-import os
 import openpyxl as op
+
 import collect_staff
-import CVSE_Data
 import match
 from downloader import *
+from 主榜_包装 import generate
 from 副榜_包装 import side_generate, move_file
 
 DEBUG = False

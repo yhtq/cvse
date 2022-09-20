@@ -35,12 +35,12 @@ def generate(data: list[CVSE_Data.Data],
     if ted_type not in ted_path.keys():
         print("没有找到ted文件")
         return
-    temp_writer, save = CVSE_Data.Data.write_to_csv_wrapper(os.path.join(TEditor_dir, "temp.csv"), _header=csv_header)
+    temp_writer, save = CVSE_Data.Data.write_to_csv_wrapper(os.path.join(TEditor_dir, "temp.csv"), with_format=True, _header=csv_header)
     count: int = 0
     for i in data:
         if not valid(i):
             continue
-        temp_writer(i, with_format=True)
+        temp_writer(i)
         count += 1
         if end_flag is not None:
             if i[end_flag[0]] == end_flag[1]:
@@ -51,7 +51,7 @@ def generate(data: list[CVSE_Data.Data],
     data_path = os.path.abspath(os.path.join(TEditor_dir, "temp.csv"))
     TEditor = os.path.abspath(TEditor)
     pres_path = os.path.abspath(os.getcwd())
-    os.chdir(TEditor_dir)
+    #os.chdir(TEditor_dir)
     try:
         args = [TEditor,
                 "batchgen",

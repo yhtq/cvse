@@ -10,8 +10,10 @@ remove*.txt
 *_*/
 !/side_cover
 *.zip
-!remove.txt
 !/C_60
 !/C_61
 !/主榜工具/底板/*.png
 !/C_61/模板/*.png
+config*.txt
+data_*.xlsx
+remove.txt

@@ -1,22 +1,34 @@
+import os
 from abc import ABCMeta
 from datetime import datetime
-from typing import TypeVar, Optional
+from functools import lru_cache
+from typing import TypeVar, Optional, Type
 import re
 
-color_map: dict[int, tuple[str, str]] = {}
-with open('color.txt', 'r', encoding='utf-8') as f:
-    for line in f.readlines():
-        line = line.strip()
-        if line[0] == '#':
-            continue
-        line = line.split('#')[0]
-        if line:
-            line = [i.strip() for i in line.split('=')]
-            temp_list = [i.strip() for i in line[1].split(',')]
-            if len(line) != 2 or len(temp_list) != 2:
-                print(f'Invalid line: {line}')
+_init_flag = False
+
+
+@lru_cache
+def load_color_map() -> dict[int, tuple[str, str]]:
+    color_map: dict[int, tuple[str, str]] = {}
+    print(1)
+    with open('color.txt', 'r', encoding='utf-8') as f:
+        for line in f.readlines():
+            _line = line.strip()
+            if _line[0] == '#':
                 continue
-            color_map[int(line[0])] = temp_list[0], temp_list[1]
+            valid_text = _line.split('#')[0]
+            if valid_text:
+                __line = [i.strip() for i in valid_text.split('=')]
+                temp_list = [i.strip() for i in __line[1].split(',')]
+                if len(__line) != 2 or len(temp_list) != 2:
+                    print(f'Invalid line: {__line}')
+                    continue
+                color_map[int(__line[0])] = temp_list[0], temp_list[1]
+    return color_map
+
+
+# print(123)
 
 T = TypeVar('T', int, float, datetime)
 
@@ -31,6 +43,8 @@ class BaseValue(metaclass=ABCMeta):
         return False
 
     def is_positive(self) -> bool:
+        if self.value is None:
+            raise NotImplementedError
         return self.value >= 0
 
     def get_color(self) -> str:
@@ -44,9 +58,10 @@ class BaseValue(metaclass=ABCMeta):
             if isinstance(self.value, int):
                 mark_order: list[str] = ['fill', 'align', r'\+', 'width', r'\,']
             elif isinstance(self.value, float):
-                mark_order: list[str] = ['fill', 'align', r'\+', r'\,', r'\.\d', 'width', r'\.\d%']
+                mark_order = ['fill', 'align', r'\+', r'\,', r'\.\d', 'width', r'\.\d%']
             else:
-                raise TypeError
+                # 这里只实现了int和float的格式化，其他类型的格式化需要自己实现
+                raise NotImplementedError
             valid_list: list[str] = []
             format_str: str = '{:'
             align_flag: bool = False
@@ -76,7 +91,8 @@ class BaseValue(metaclass=ABCMeta):
                         format_str += j
                         valid_list.append(j)
             if set(valid_list) != set(self.format_list):
-                raise ValueError(f'Invalid format: {self.format_list} for Value: {self.value} of type {type(self.value)}')
+                raise ValueError(
+                    f'Invalid format: {self.format_list} for Value: {self.value} of type {type(self.value)}')
             if isinstance(self.value, int):
                 format_str += 'd}'
             elif isinstance(self.value, float):
@@ -101,41 +117,45 @@ class BaseColor(BaseValue, metaclass=ABCMeta):
 
 
 class IntValue(BaseValue):
-    def __init__(self, value, *args: Optional[str], **kwargs):
+    def __init__(self, value, *args: str, **kwargs):
         super().__init__()
         self.value: int = int(value)
         self.format_list: list[str] = list(args)
 
 
 class FloatValue(BaseValue):
-    def __init__(self, value, *args: Optional[str], **kwargs):
+    def __init__(self, value, *args: str, **kwargs):
         super().__init__()
         self.value: float = float(value)
         self.format_list: list[str] = list(args)
 
 
-def get_ColorValue_class(index: int, value_type: str) -> type:
-    color_set = color_map[index]
+@lru_cache  # 否则每次都会重新创建一个新的类
+def get_ColorValue_class(index: int, value_type: str) -> Type[BaseColor]:
+    color_set = load_color_map()[index]
     if value_type == 'int':
-        class ColorValue(IntValue, BaseColor):
-            def __init__(self, value, *args: Optional[str], **kwargs):
+        class ColorValueInt(IntValue, BaseColor):
+            def __init__(self, value, *args: str, **kwargs):
                 super().__init__(value, *args, **kwargs)
-                self.color_set: tuple = color_set
+                self.color_set: tuple[str, str] = color_set
 
             def with_color(self):
                 return True
+
+        return ColorValueInt
     elif value_type == 'float':
-        class ColorValue(FloatValue, BaseColor):
-            def __init__(self, value, *args: Optional[str], **kwargs):
+        class ColorValueFloat(FloatValue, BaseColor):
+            def __init__(self, value, *args: str, **kwargs):
                 super().__init__(value, *args, **kwargs)
-                self.color_set: tuple = color_set
+                self.color_set: tuple[str, str] = color_set
 
             def with_color(self):
                 return True
+
+        return ColorValueFloat
     else:
         raise ValueError(f'Invalid value type: {value_type}')
-    #print(ColorValue.__mro__)
-    return ColorValue
+    # print(ColorValue.__mro__)
 
 
 class Time(BaseValue):

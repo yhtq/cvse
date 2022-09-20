@@ -40,4 +40,8 @@ def remove_file(path: str):
     for file in file_list:
         if file == '.gitkeep':
             continue
-        os.remove(os.path.join(path, file))
+        try:
+            os.remove(os.path.join(path, file))
+        except PermissionError as e:
+            shutil.rmtree(os.path.join(path, file))
+            continue

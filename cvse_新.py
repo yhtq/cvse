@@ -1,15 +1,18 @@
 # coding=utf-8
 import csv
+import gc
 import webbrowser
+
 import dateutil.relativedelta
 
+import CVSE_Data
 from CVSE_Data import rank_trans, _input
-from Rank_data import calculate_time, calculate_index, Rank_data, Rank_data_delta
+from typing import ParamSpec, Concatenate, TypeVar, Type, Annotated, Generic, List
+from RankData import calculate_time, RankData, RankDataDelta, calculate_history, get_history_avbv
 from 主榜_包装 import generate
 import openpyxl as op
 import collect_staff
 import match
-from collections.abc import Callable
 from downloader import *
 from 副榜_包装 import *
 
@@ -18,6 +21,9 @@ header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '
           '收藏增量', '硬币增量', '分享增量',
           '点赞增量', 'Pt', '修正A', '修正B', '修正C', '长期入榜及期数', '收录', "引擎", '原创', "主榜", 'Last Pt',
           'rate', 'staff', '新曲排名', '新曲', '未授权搬运', '已删稿', 'HOT']
+_required_keys = ['名次', 'aid', '标题', 'mid', 'up主', '投稿时间', '分P数', '播放增量', '弹幕增量', '评论增量',
+                  '收藏增量', '硬币增量', '分享增量',
+                  '点赞增量', 'Pt', '修正A', '修正B', '修正C']
 engine = {1: 'Sharpkey', 2: 'DeepVocal', 3: 'MUTA', 4: '袅袅虚拟歌手', 5: 'AISingers', 6: 'X Studio', 7: '跨引擎',
           8: 'Vogen',
           9: 'VocalSharp'}
@@ -46,11 +52,6 @@ if os.path.exists("remove.txt"):
         remove_list = f.read().split('\n')
 else:
     remove_list = []
-
-
-@CVSE_Data.permission_access_decorator
-def remove(path: str):
-    os.remove(path)
 
 
 def tag_info_decorator(func: Callable):
@@ -145,7 +146,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         return write_long_term_data, save_close
 
     def __init__(self, data, data_type: str, file_header: list = None, required_keys: list[str] = None):
-        super(Pres_data, self).__init__(data, data_type, file_header, required_keys)
+        super().__init__(data, data_type, file_header, required_keys)
         self.desc: str = ""
         self.tag: list[str] = []
         self.title: str = ''
@@ -347,13 +348,16 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             raise ValueError
         if with_template_generate:
             if place <= Pres_data.max_count_main:
-                download_cover(str(av), 'cover/AV' + str(av) + '.jpg')
-                download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg')
+                download_cover(str(av), 'cover/AV' + str(av) + '.jpg', time_sleep=0.5)
+                download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg',
+                              time_sleep=0.5)
             if place <= Pres_data.max_count_side or self.is_new():
-                download_cover(str(av), 'side_cover/AV' + str(av) + '.jpg')
-                download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg')
+                download_cover(str(av), 'side_cover/AV' + str(av) + '.jpg', time_sleep=0.5)
+                download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg',
+                              time_sleep=0.5)
             if new_place <= new_rank_number[Pres_data.rank] and self.is_new():
-                download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg')
+                download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg',
+                              time_sleep=0.5)
         if self['新曲'] != '':
             return place + 1, new_place + 1, info_input_flag
         elif hot_flag:
@@ -370,10 +374,10 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             return False
 
 
-def to_str_with_delta(pres_data: Rank_data, prev_data: Rank_data):
-    data_delta = Rank_data_delta(pres_data, prev_data)
-    key_list_1 = Rank_data.data_list + ['新曲']
-    key_list_2 = Rank_data.engine_list + ['原创']
+def to_str_with_delta(pres_data: RankData, prev_data: RankData):
+    data_delta = RankDataDelta(pres_data, prev_data)
+    key_list_1 = RankData.data_list + ['新曲']
+    key_list_2 = RankData.engine_list + ['原创']
     sign = lambda key: '+' if data_delta.data_delta[key] >= 0 else ''
     temp_list = [f'{i}:{pres_data.count[i]}({sign(i)}{data_delta.data_delta[i]})' for i in key_list_1 + key_list_2]
     out_str = '\n'.join(temp_list)
@@ -425,7 +429,7 @@ def init() -> tuple[list[Pres_data], int, int, str]:
         flag = 1
     else:
         flag = 0
-    data_list: list[Pres_data] = CVSE_Data.read(file, Pres_data)
+    data_list: List[Pres_data] = CVSE_Data.read(file, class_type=Pres_data, required_keys=_required_keys)
     return data_list, rank, index, default_dir
 
 
@@ -454,7 +458,7 @@ def read_last(rank: int, index: int):
         print('文件不存在')
         file = input(
             f'请输入上期排行榜的文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n')
-    return CVSE_Data.read(file, class_type=CVSE_Data.Data)
+    return CVSE_Data.read(file, class_type=CVSE_Data.Data, required_keys=_required_keys)
 
 
 def load_record(_pres_list: list[CVSE_Data.Data], file_name: str):
@@ -469,11 +473,10 @@ def load_record(_pres_list: list[CVSE_Data.Data], file_name: str):
 
 def history(rank: int, index: int):
     # index是当前期的序号
-    default_dir: str = f'{rank_trans[rank]}_{index}'
-    his_index: int = calculate_index(rank, Pres_data.start_time - dateutil.relativedelta.relativedelta(years=1))
-    if rank == 1:
-        his_index += 1
-        # SV刊的历史回顾是指当前期收录起始时间减去一年所在的下一期
+    # 这里目录改成了历史期对应的目录
+    his_index = calculate_history(rank, index)
+    default_dir: str = f'{rank_trans[rank]}_{his_index}'
+    pres_dir: str = f'{rank_trans[rank]}_{index}'
     text: str = f'请输入历史回顾当期（{his_index}期）数据的文件名，如 41-2010.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n输入1自动下载历史数据文件或读取已下载的数据文件，输入0跳过\n'
     file: str = input(text)
     while not os.path.exists(file):
@@ -490,20 +493,17 @@ def history(rank: int, index: int):
             break
         print('文件不存在')
         file = input(text)
-    his_data = CVSE_Data.read(file, CVSE_Data.Data, 5)
+    his_data = CVSE_Data.read(file, class_type=CVSE_Data.Data, max_rank=5)
     his_data = [i for i in his_data if 'hot' not in str(i['名次']).lower()]
     write_xlsx, save = CVSE_Data.Data.write_to_xlsx_wrapper(f'{_default_dir}/{rank_trans[_rank]}_{_index}_历史.xlsx',
                                                             header=CVSE_Data.history_header)
     for i in his_data:
         write_xlsx(i)
-    his_cover_file = f"cover/history.jpg"
-    his_bv = input(f"请输入历史回顾排行榜(第{his_index})期的aid/bvid")
-    if os.path.exists(his_cover_file):
-        remove(his_cover_file)  # 因为download_cover的装饰器里写了如果文件已存在就不下载，这里删去原有的文件
-    download_cover(his_bv, his_cover_file)
+    av, _ = get_history_avbv(rank, his_index)
+    download_cover(av, 'cover/history.jpg', time_sleep=0)
     save()
     if with_template_generate:
-        generate(his_data, 'history', CVSE_Data.history_header, out_path=os.path.join(default_dir, '模板'))
+        generate(his_data, 'history', CVSE_Data.history_header, out_path=os.path.join(pres_dir, '模板', '历史回顾'))
     return
 
 
@@ -611,8 +611,8 @@ if with_match:
     while write_long_term_xlsx(i.__next__()):
         pass
     save(f'data_{rank_trans[Pres_data.rank]}.xlsx')
-    pres_rank_data = Rank_data(pres_list, Pres_data.index, Pres_data.rank)
-    prev_rank_data = Rank_data(prev_list, Pres_data.index - 1, Pres_data.rank)
+    pres_rank_data = RankData(pres_list, Pres_data.index, Pres_data.rank)
+    prev_rank_data = RankData(prev_list, Pres_data.index - 1, Pres_data.rank)
     rank_information = to_str_with_delta(pres_rank_data, prev_rank_data)
     print(rank_information)
     with open(f'{_default_dir}/{rank_trans[_rank]}_{_index}_数据信息.txt', 'w') as f:

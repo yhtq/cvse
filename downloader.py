@@ -1,13 +1,12 @@
+import datetime
 import json
 import os
 import time
-import datetime
-from PIL import Image
-
-import CVSE_Data
-from CVSE_Data import permission_access_decorator
+from io import BytesIO
+from typing import Union, Optional, Callable
 
 import requests
+from PIL import Image
 
 
 def request(url: str, headers: dict[str, str] = None):
@@ -25,42 +24,45 @@ def request(url: str, headers: dict[str, str] = None):
     return res
 
 
-def download_decorator(func):
-    def download(aid_mid: str, img_name: str):
+def download_decorator(func: Callable[[Union[int, str], str], Image.Image]) \
+        -> Callable[[Union[int, str], str, float], Optional[Image.Image]]:
+    def download(aid_mid: Union[int, str], img_name: str, time_sleep: float) -> Optional[Image.Image]:
         if os.path.exists(img_name):
-            return
+            return None
         if aid_mid == '':
             print(img_name + ' 为空')
-            return
+            return None
         try:
-            func(aid_mid, img_name)
-            img: Image.Image = Image.open(img_name)
-            img.convert('RGBA')
-        except:
+            img: Image = func(aid_mid, img_name)
+            time.sleep(time_sleep)
+            img.convert('RGB')
+            img.save(img_name)
+            return img
+        except Exception as e:
+            print(e)
             print(img_name + '下载失败')
-
+            return None
     return download
 
 
 @download_decorator
-def download_cover(aid, img_name):
+def download_cover(aid: Union[int, str], img_name: str) -> Image.Image:
     res = request('https://api.bilibili.com/x/web-interface/search/all?keyword=' + str(aid))
     res = json.loads(res.text)
     cover_flag = 0
     address = res['data']['result']['video'][0]['pic']
     pic = request('http:' + str(address))
-    with open(img_name, 'wb+') as file:
-        file.write(pic.content)
-        file.flush()
-        file.close()
-    time.sleep(0.5)
+    #with open(img_name, 'wb+') as file:
+    #    file.write(pic.content)
+    #    file.flush()
+    #    file.close()
+    #time.sleep(0.5)
+    img: Image.Image = Image.open(BytesIO(pic.content))
+    return img
 
 
 @download_decorator
-def download_face(mid, img_name):
-    if mid == '':
-        print('没有找到mid')
-        return
+def download_face(mid: Union[int, str], img_name: str) -> Image.Image:
     headers: dict[str, str] = {
         'Host': 'api.bilibili.com',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0'
@@ -69,11 +71,12 @@ def download_face(mid, img_name):
     res = json.loads(res.text)
     address = res['data']['face']
     pic = request(str(address))
-    with open(img_name, 'wb+') as file:
-        file.write(pic.content)
-        file.flush()
-        file.close()
-    time.sleep(0.5)
+    #with open(img_name, 'wb+') as file:
+    #    file.write(pic.content)
+    #    file.flush()
+    #    file.close()
+    #time.sleep(0.5)
+    return Image.open(BytesIO(pic.content))
 
 
 def download_pres_data(end_time: datetime.datetime, rank: int, index: int, address: str) -> int:
@@ -103,6 +106,8 @@ def download_history_data(end_time: datetime.datetime, rank: int, index: int, ad
     # 下载文件路径为 {address}/{index}.xlsx
     if os.path.exists(f'{address}/{index}.xlsx'):
         return 1
+    if not os.path.exists(f'{address}'):
+        os.makedirs(f'{address}')
     trans = {0: '月刊国产榜', 1: '周刊SynthV排行榜'}
     name = f"{index:03}.xlsx" if rank == 1 else f"{index}-{end_time.strftime('%y%m')}.xlsx"
     print(f'正在下载{name}')
