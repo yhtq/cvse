@@ -102,6 +102,10 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
 
     @staticmethod
     def write_long_term_data_wrapper():
+        if not os.path.exists(f'data_{rank_trans[Pres_data.rank]}.xlsx'):
+            print(f"缺少长期文件 data_{rank_trans[Pres_data.rank]}.xlsx")
+            input('按任意键退出')
+            raise ValueError
         wb = op.load_workbook(f'data_{rank_trans[Pres_data.rank]}.xlsx')
         ws = wb.active
         col = 2

@@ -14,6 +14,6 @@ remove*.txt
 !/C_61
 !/主榜工具/底板/*.png
 !/C_61/模板/*.png
-config*.txt
+config*.ini
 data_*.xlsx
 remove.txt
