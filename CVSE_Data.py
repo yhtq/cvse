@@ -4,11 +4,13 @@ import csv
 import datetime
 import time
 from functools import wraps, singledispatch
+from sys import getsizeof
 from types import UnionType
 from typing import Callable, ParamSpec, Concatenate, TypeVar, Type, Annotated, Generic, Optional, Tuple, Any, Union, \
     TypedDict
 import openpyxl as op
 import openpyxl.styles
+from memory_profiler import profile
 
 header = ['名次', '上次', 'aid', '标题', 'mid', 'up主', '投稿时间', '时长', '分P数', '播放增量', '弹幕增量', '评论增量',
           '收藏增量', '硬币增量', '分享增量',
@@ -125,7 +127,6 @@ class Data:
     int_data = ['aid', 'mid', '时长', '分P数', '播放增量', '弹幕增量', '评论增量', '收藏增量', '硬币增量', '分享增量',
                 '点赞增量', '长期入榜及期数', '收录', '新曲排名', '已删稿']
     float_data = ['Pt', '修正A', '修正B', '修正C']
-    ignore = ['HOT', '新曲排名', '长期入榜及期数']  # 这些列不读入数据
 
     @staticmethod
     def write_to_xlsx_wrapper(file_name: str, header: Optional[list['str'] | str] = None):
@@ -179,12 +180,14 @@ class Data:
             line += 1
             return
 
+        #@profile
         def save_close():
             @permission_access_decorator
             def _save_close(file: str):
                 nonlocal wb
                 wb.save(file)
                 wb.close()
+                del wb
             _save_close(file_name)
 
         return write_to_xlsx, save_close
@@ -236,6 +239,7 @@ class Data:
                         dict_to_write[key] = f'{self[key]}'
             writer.writerow(dict_to_write)
 
+        #@profile
         def save_close() -> None:
             f.close()
 
@@ -312,9 +316,6 @@ class Data:
             if self.dict_.get(key) is None:
                 raise ValueError(f'缺少必要的键{key}')
 
-        for i in Data.ignore:
-            if i in self.dict_.keys():
-                self.dict_[i] = ''
         if not (isinstance(self['aid'], int) or (isinstance(self['aid'], str) and self['aid'].isdigit())):
             raise ValueError(f'缺少必要的aid')
         else:

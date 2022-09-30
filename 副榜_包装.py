@@ -2,7 +2,10 @@
 import os
 import shutil
 
+from memory_profiler import profile
 
+
+#@profile
 def side_generate(*args):
     # 三个参数依次是排行榜类型，副榜起始名次，副榜结束名次
     i = iter(args)

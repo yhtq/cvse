@@ -2,6 +2,7 @@
 import csv
 import gc
 import webbrowser
+from sys import getsizeof
 
 import dateutil.relativedelta
 
@@ -89,6 +90,7 @@ def desc_title_info_decorator(func: Callable[..., None]) -> Callable[..., None]:
 
 
 class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
+    ignore = ['HOT', '新曲排名', '长期入榜及期数']  # 这些列不读入数据, 收录时重新计算
     xlsx_order: list[str] = [0]  # xlsx第i列列索引，从1开始
     flag: int = 0  # 是否完成收录
     index: int = 0  # 期数
@@ -111,7 +113,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         col = 2
         while ws.cell(1, col - 1).value != f'#{Pres_data.index - 1}':
             col += 1
-            if col > 500:
+            if col > 500:       # 我觉得CVSE应该没有哪个榜能活到五百期
                 print(f'data_{rank_trans[Pres_data.rank]}.xlsx 格式错误')
                 print('按任意键退出')
                 raise ValueError
@@ -154,6 +156,9 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         self.desc: str = ""
         self.tag: list[str] = []
         self.title: str = ''
+        for i in Pres_data.ignore:
+            if i in self.dict_.keys():
+                self.dict_[i] = ''
         self['主榜'] = ''  # 重新计算主榜
         self['上次'] = '——'
         if flag and self.dict_['收录'] == '':
@@ -545,6 +550,7 @@ if with_match:
     print('开始与上期数据进行匹配')
     match.match(_rank, _index, Pres_data.start_time, pres_list, prev_list)
     print('匹配完成')
+#print(getsizeof(pres_list), getsizeof(prev_list))
 if Pres_data.flag != 1:
     load_record(pres_list, f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv')
     load_record(pres_list, f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv')

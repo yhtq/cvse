@@ -87,7 +87,6 @@ def calculate_week(time: datetime.datetime) -> int:
     return (time - start_day_of_month).days // 7 + 1
 
 
-
 def calculate_history(rank: int, index: int) -> int:
     # 返回去年当期期数。若小于零则为0
     start_time, _ = calculate_time(rank, index)
@@ -116,6 +115,7 @@ class BaseRankData(ABC):
 
 
 Slide = pptx.slide.Slide
+Shapes = pptx.shapes.shapetree.SlideShapes
 Run = pptx.text.text._Run
 Value = Union[BaseValue, CVSE_Data.Data_value_type]
 Class = Union[CVSE_Data.Data, BaseRankData, None]
@@ -123,6 +123,7 @@ ValidMember = Union[BaseValue,
                     str,
                     CVSE_Data.Data,
                     CVSE_Data.Data_value_type,
+                    Image.Image,
                     List[CVSE_Data.Data_value_type],
                     None]
 Member = Optional[ValidMember]
@@ -176,7 +177,7 @@ class RankData(BaseRankData):
         self.dict_for_replace: dict[str, Member] = {
             'index': self.index,
             'start_time': self.time_start,
-            'first': max(filter(lambda x: x['收录'] == 1, data)),
+            'first': max(filter(lambda x: x['收录'] == 1 and str(x['名次']).lower() != 'hot', data)),
             'week': calculate_week(self.time_end),
             'end_time': self.time_end,
             'new_total': self.count['新曲'],
@@ -202,9 +203,10 @@ class RankData(BaseRankData):
             'top1_view': self.Data_list[0],
             'top1_view_value': self.Data_list[0]['播放增量']
         }
-        self.dict_to_get: dict[str, Union[Member, Callable[[], Member]]] = {
+        self.dict_to_get: dict[str, Union[Member, Callable[[], Member]]] = {  # 信息待定
             'aid': partial(get_history_av, rank=self.rank, index=self.index),
             'bvid': partial(get_history_bv, rank=self.rank, index=self.index),
+            'cover': partial(get_history_cover, rank=self.rank, index=self.index),
         }
         for i in filter(lambda x: x['收录'] == 1, data):  # type: ignore
             if i['主榜'] == '主榜截止':  # type: ignore
@@ -295,3 +297,8 @@ def get_history_av(rank: int, index: int) -> int:
 
 def get_history_bv(rank: int, index: int) -> str:
     return get_history_avbv(rank, index)[1]
+
+
+def get_history_cover(rank: int, index: int) -> Image.Image:
+    av: int = get_history_av(rank, index)
+    return download_cover(av, 'history', 0, False)

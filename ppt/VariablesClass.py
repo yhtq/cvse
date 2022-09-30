@@ -1,8 +1,12 @@
 import os
 from abc import ABCMeta
 from datetime import datetime
-from functools import lru_cache
-from typing import TypeVar, Optional, Type
+from functools import lru_cache, partial
+from io import BytesIO
+
+import pptx
+from PIL import Image
+from typing import TypeVar, Optional, Type, Union, Callable
 import re
 
 _init_flag = False
@@ -102,6 +106,9 @@ class BaseValue(metaclass=ABCMeta):
                     format_str += 'f}'
             return format_str.format(self.value)
 
+    def get_callable(self) -> Optional[Callable]:
+        return None
+
 
 class BaseColor(BaseValue, metaclass=ABCMeta):
     # 有颜色的值
@@ -173,6 +180,42 @@ class Time(BaseValue):
     def is_positive(self) -> bool:
         print('时间量没有正负之分')
         return True
+
+
+class PicturePlacer(BaseValue):
+    def __init__(self, pic: Union[Image.Image, str], *args, **kwargs):
+        super().__init__()
+        self.x: float
+        self.y: float
+        self.width: float
+        self.height: float
+        self.pic_file: Union[str, BytesIO]
+        if len(args) != 2:
+            raise ValueError('Invalid picture args')
+        try:
+            self.x, self.y = eval(args[0])
+            self.width, self.height = eval(args[1])
+        except Exception as e:
+            raise ValueError(f'Invalid picture position or size: {e}')
+        if isinstance(pic, Image.Image):
+            bytes_io = BytesIO()
+            pic.save(bytes_io, format='JPEG')
+            self.pic_file = bytes_io
+        else:
+            self.pic_file = pic
+
+    def __str__(self):
+        return ''
+
+    def get_callable(self) -> Optional[Callable[[pptx.shapes.shapetree.SlideShapes], None]]:
+        x = pptx.util.Cm(self.x)
+        y = pptx.util.Cm(self.y)
+        width = pptx.util.Cm(self.width)
+        height = pptx.util.Cm(self.height)
+        return partial(pptx.shapes.shapetree.SlideShapes.add_picture, image_file=self.pic_file, left=x, top=y, width=width, height=height)
+
+
+
 
 # func = get_ColorValue_class(1, 'float')
 # print(func(1232.66575, '+', ',', '.5%'))

@@ -24,19 +24,20 @@ def request(url: str, headers: dict[str, str] = None):
     return res
 
 
-def download_decorator(func: Callable[[Union[int, str], str], Image.Image]) \
-        -> Callable[[Union[int, str], str, float], Optional[Image.Image]]:
-    def download(aid_mid: Union[int, str], img_name: str, time_sleep: float) -> Optional[Image.Image]:
+def download_decorator(func: Callable[[Union[int, str], str, float, bool], Image.Image]) \
+        -> Callable[[Union[int, str], str, float, bool], Optional[Image.Image]]:
+    def download(aid_mid: Union[int, str], img_name: str, time_sleep: float, with_save: bool = True) -> Optional[Image.Image]:
         if os.path.exists(img_name):
             return None
         if aid_mid == '':
             print(img_name + ' 为空')
             return None
         try:
-            img: Image = func(aid_mid, img_name)
+            img: Image = func(aid_mid, img_name, time_sleep, with_save)
             time.sleep(time_sleep)
             img.convert('RGB')
-            img.save(img_name)
+            if with_save:
+                img.save(img_name)
             return img
         except Exception as e:
             print(e)
@@ -46,7 +47,7 @@ def download_decorator(func: Callable[[Union[int, str], str], Image.Image]) \
 
 
 @download_decorator
-def download_cover(aid: Union[int, str], img_name: str) -> Image.Image:
+def download_cover(aid: Union[int, str], img_name: str, time_sleep: float, with_save: bool = True) -> Image.Image:
     res = request('https://api.bilibili.com/x/web-interface/search/all?keyword=' + str(aid))
     res = json.loads(res.text)
     cover_flag = 0
@@ -62,7 +63,7 @@ def download_cover(aid: Union[int, str], img_name: str) -> Image.Image:
 
 
 @download_decorator
-def download_face(mid: Union[int, str], img_name: str) -> Image.Image:
+def download_face(mid: Union[int, str], img_name: str, time_sleep: float, with_save: bool = True) -> Image.Image:
     headers: dict[str, str] = {
         'Host': 'api.bilibili.com',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0'

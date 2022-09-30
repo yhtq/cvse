@@ -139,19 +139,21 @@ def type_split(name: str) -> tuple[str, Optional[Type[Value]]]:
         return name, str
     if name == 'time':
         return name, VariablesClass.Time
-    if name in ['Table', 'pic']:
-        return name, None
+    if name == 'pic':
+        return name, VariablesClass.PicturePlacer
+    if name in ['Table']:
+        return name, None   # WIP
     raise ValueError(f'Invalid type: {name}')
 
 
 def format_func(arg: str, root: RootType) \
-        -> Tuple[Value, Optional[Callable[[Slide], None]]]:
+        -> Tuple[Value, Optional[Callable[[RankData.Shapes], None]]]:
     # 格式化成功返回相应对象，否则返回原字符串,第二个参数是对ppt的操作，带一个参数slide类
     if arg in alias_dict:
         name = alias_dict[arg.strip()]
     else:
         name = arg.strip()
-    args_list: list[str] = name.split(' ')
+    args_list: list[str] = re.split(r'\s(?![^(]*\))', name) # 匹配不在括号内的空格,感谢
     if len(args_list) == 1:
         return arg, None
     try:
@@ -161,8 +163,13 @@ def format_func(arg: str, root: RootType) \
         return '{' + arg + '}', None
     if value_class is not None:
         try:
-            value: Value = value_class(data_lookup(root, *(args_list[1].split(':'))), *args_list[2:])
-            return value, None
+            if args_list[1].endswith('"') and args_list[1].startswith('"'):
+                value: Value = value_class(args_list[1], *args_list[2:])
+            else:
+                value = value_class(data_lookup(root, *(args_list[1].split(':'))), *args_list[2:])
+            operation: Optional[Callable[[Slide], None]] \
+                = value.get_callable() if isinstance(value, VariablesClass.BaseValue) else None
+            return value, operation
         except ValueError as e:
             print(e)
             print(f'Invalid data or args: {args_list[1:]}')
@@ -176,7 +183,7 @@ def action(match: str, root: RootType, slide: Slide, run: Run) -> str:
     arg: str = match
     result, operation = format_func(arg, root)
     if operation is not None:
-        operation(slide)
+        operation(slide.shapes)
     if isinstance(result, VariablesClass.BaseValue):
         if result.with_color():
             run.font.color.rgb = pptx.dml.color.RGBColor.from_string(result.get_color())
