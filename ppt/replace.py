@@ -153,7 +153,7 @@ def format_func(arg: str, root: RootType) \
         name = alias_dict[arg.strip()]
     else:
         name = arg.strip()
-    args_list: list[str] = re.split(r'\s(?![^(]*\))', name) # 匹配不在括号内的空格,感谢
+    args_list: list[str] = re.split(r'\s+(?![^(]*\))', name) # 匹配不在括号内的空格,感谢
     if len(args_list) == 1:
         return arg, None
     try:
