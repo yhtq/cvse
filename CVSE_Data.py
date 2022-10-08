@@ -312,10 +312,6 @@ class Data:
             print('文件格式错误')
             input()
             raise ValueError
-        for key in self.required_keys:
-            if self.dict_.get(key) is None:
-                raise ValueError(f'缺少必要的键{key}')
-
         if not (isinstance(self['aid'], int) or (isinstance(self['aid'], str) and self['aid'].isdigit())):
             raise ValueError(f'缺少必要的aid')
         else:
@@ -341,6 +337,9 @@ class Data:
             if isinstance(key, str) and key.lower() == 'staff':
                 _staff = self.dict_[key]
                 del_list.append(key)
+        for key in self.required_keys:
+            if self.dict_.get(key) is None:
+                raise ValueError(f'缺少必要的键: {key}')
         for key in del_list:
             del self.dict_[key]
         self.dict_['staff'] = _staff
@@ -523,6 +522,7 @@ def read(file_path: str,
          *,
          class_type: Type[Data_type] = Data,
          max_rank: int = -1,
+         inclusion_status: int = 0,
          required_keys: list[str] = None) -> list[Data_type]:
     data_list: list[Data_type] = []
     Data.main_flag = 0
@@ -533,11 +533,11 @@ def read(file_path: str,
     if file_path.split('.')[-1] == 'csv':
         try:
             with open(file_path, 'r') as f:
-                _read_csv(f, data_list, class_type, max_rank, required_keys)
+                _read_csv(f, data_list, class_type, max_rank, required_keys, inclusion_status)
 
         except UnicodeDecodeError:
             with open(file_path, 'r', encoding="utf-8-sig") as f:
-                _read_csv(f, class_type, data_list,  max_rank, required_keys)
+                _read_csv(f, class_type, data_list,  max_rank, required_keys, inclusion_status)
     elif file_path.split('.')[-1] == 'xlsx':
         wb = op.load_workbook(file_path, read_only=True)
         sheet = wb.active
@@ -556,6 +556,8 @@ def read(file_path: str,
             try:
                 new_data = class_type(row, 'xlsx', xlsx_order, required_keys=required_keys)
                 if new_data.valid:
+                    if inclusion_status == 1:
+                        new_data['收录'] = 1
                     data_list.append(new_data)
                     if (str(new_data['名次']) == str(max_rank)) and (max_rank != -1):
                         break
@@ -573,7 +575,7 @@ def read(file_path: str,
     return data_list
 
 
-def _read_csv(f, class_type, data_list, max_rank, required_keys):
+def _read_csv(f, class_type, data_list, max_rank, required_keys, inclusion_status):
     reader = csv.DictReader(f)
     for g, i in enumerate(reader):
         progress = int(g * 100 / reader.line_num)
@@ -582,6 +584,8 @@ def _read_csv(f, class_type, data_list, max_rank, required_keys):
         try:
             new_data = class_type(i, 'csv', required_keys=required_keys)
             if new_data.valid:  # 避免空行
+                if inclusion_status == 1:
+                    new_data['收录'] = 1
                 data_list.append(new_data)
                 if (str(new_data['名次']) == str(max_rank)) and (max_rank != -1):
                     break

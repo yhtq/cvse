@@ -28,7 +28,7 @@ _required_keys = ['名次', 'aid', '标题', 'mid', 'up主', '投稿时间', '�
 engine = {1: 'Sharpkey', 2: 'DeepVocal', 3: 'MUTA', 4: '袅袅虚拟歌手', 5: 'AISingers', 6: 'X Studio', 7: '跨引擎',
           8: 'Vogen',
           9: 'VocalSharp'}
-flag = 0
+flag: int = 0    # 是否完成收录
 # max_main = {0: 20, 1: 25}
 # max_side = {0: 80, 1: 105}
 # new_rank_number: dict[int, int] = {0: 10, 1: 8}
@@ -92,13 +92,13 @@ def desc_title_info_decorator(func: Callable[..., None]) -> Callable[..., None]:
 class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
     ignore = ['HOT', '新曲排名', '长期入榜及期数']  # 这些列不读入数据, 收录时重新计算
     xlsx_order: list[str] = [0]  # xlsx第i列列索引，从1开始
-    flag: int = 0  # 是否完成收录
     index: int = 0  # 期数
     rank: int = -1
     start_time: datetime.datetime = None
     end_time: datetime.datetime = None
     max_count_main: int = 0  # 主榜最大曲数
     max_count_side: int = 0  # 副榜最大曲数
+    min_new_count: int = 0  # 新曲最小曲数, 不足则补充新曲榜
     min_duration: int = 0  # 最短时长，单位为秒
     remove_flag = 0
 
@@ -190,12 +190,12 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         res2 = json.loads(res2.text)
         if not "data" in res2:
             return -1
-        flag = 0
+        time_flag = 0
         for i in res2["data"]:
             if int(i.get("duration")) >= Pres_data.min_duration:
-                flag = 1
+                time_flag = 1
                 break
-        return flag
+        return time_flag
 
     @desc_title_info_decorator
     def get_staff(self, with_open_browser: bool = False):
@@ -251,8 +251,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
                     self.get_staff(not browser_flag)
                     if self['原创'] == '其他':
                         self['原创'] = ''
-            if self.is_new() and place > Pres_data.max_count_main and new_place <= new_rank_number[
-                Pres_data.rank]:
+            if self.is_new() and place > Pres_data.max_count_main and new_place <= Pres_data.min_new_count:
                 self['新曲'] = '新曲榜'
                 if with_staff and self['staff'] == '':
                     info_input_flag = True
@@ -303,8 +302,8 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         res2 = 0
         if self.is_new():
             self['上次'] = 'NEW'
-        if self['上次'] == '——' and with_match:
-            self['收录'] = 0
+        if self['上次'] == '——' and with_match and flag == 0:
+            self['收录'] = ''
         hot_flag = False
         browser_flag = 0  # 是否已打开浏览器
         av = self['aid']
@@ -343,6 +342,8 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             elif place <= Pres_data.max_count_main and self['长期入榜及期数'] != '':
                 Pres_data.max_count_main += 1
                 Pres_data.max_count_side += 1
+            if self.is_new() and max_main[Pres_data.rank] < place <= Pres_data.max_count_main:
+                Pres_data.min_new_count += 1    # 因为长期补至主榜的新曲不计入新曲榜, 这里额外增加名额
             if Pres_data.rank == 0 and self['staff']:
                 temp_list: list[str] = self['staff'].split('  |  ')
                 _engine = temp_list[0]
@@ -364,7 +365,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
                 download_cover(str(av), 'side_cover/AV' + str(av) + '.jpg', time_sleep=0.5)
                 download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg',
                               time_sleep=0.5)
-            if new_place <= new_rank_number[Pres_data.rank] and self.is_new():
+            if self['新曲'] == '新曲榜':
                 download_face(str(self['mid']), 'side_cover/uid' + str(self['mid']) + '-' + self['up主'] + '.jpg',
                               time_sleep=0.5)
         if self['新曲'] != '':
@@ -403,6 +404,7 @@ def init() -> tuple[list[Pres_data], int, int, str]:
     Pres_data.rank = rank
     Pres_data.max_count_main = max_main[rank]
     Pres_data.max_count_side = max_side[rank]
+    Pres_data.min_new_count = new_rank_number[rank]
     Pres_data.min_duration = min_duration[rank]
     index = _input("请输入待处理排行榜期数，如 133 50\n", lambda x: x.isdigit())
     while not index.isdigit():
@@ -438,7 +440,7 @@ def init() -> tuple[list[Pres_data], int, int, str]:
         flag = 1
     else:
         flag = 0
-    data_list: List[Pres_data] = CVSE_Data.read(file, class_type=Pres_data, required_keys=_required_keys)
+    data_list: List[Pres_data] = CVSE_Data.read(file, class_type=Pres_data, required_keys=_required_keys, inclusion_status=flag)
     return data_list, rank, index, default_dir
 
 
@@ -467,7 +469,7 @@ def read_last(rank: int, index: int):
         print('文件不存在')
         file = input(
             f'请输入上期排行榜的文件名，如 synthv增量_220304.csv  133.xlsx, 文件格式只限csv和xlsx 将在当前目录和当前目录下的{default_dir}搜索\n')
-    return CVSE_Data.read(file, class_type=CVSE_Data.Data, required_keys=_required_keys)
+    return CVSE_Data.read(file, class_type=CVSE_Data.Data, required_keys=_required_keys, inclusion_status=1)
 
 
 def load_record(_pres_list: list[CVSE_Data.Data], file_name: str):
@@ -551,7 +553,7 @@ if with_match:
     match.match(_rank, _index, Pres_data.start_time, pres_list, prev_list)
     print('匹配完成')
 #print(getsizeof(pres_list), getsizeof(prev_list))
-if Pres_data.flag != 1:
+if flag == 1:
     load_record(pres_list, f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv')
     load_record(pres_list, f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv')
 if not os.path.exists(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv'):
