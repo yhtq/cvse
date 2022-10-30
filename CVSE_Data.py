@@ -95,9 +95,9 @@ def _(time_data: str) -> Tuple[datetime.datetime, time.struct_time, str]:
             struct_time = time.strptime(time_data, '%Y/%m/%d %H:%M')
         except ValueError:
             try:
-                struct_time = time.strptime(time_data, '%Y-%m-%d %H:%M')
+                struct_time = time.strptime(time_data, '%Y/%m/%d %H:%M')
             except ValueError:
-                struct_time = time.strptime(time_data, '%Y-%m-%d %H:%M:%S')
+                struct_time = time.strptime(time_data, '%Y/%m/%d %H:%M:%S')
     else:
         raise TypeError(f"不支持的时间格式{time_data}")
     time_datetime = datetime.datetime.fromtimestamp(time.mktime(struct_time))
@@ -106,8 +106,8 @@ def _(time_data: str) -> Tuple[datetime.datetime, time.struct_time, str]:
 
 @time_covert.register
 def _(time_data: datetime.datetime) -> Tuple[datetime.datetime, time.struct_time, str]:
-    time_str = time_data.strftime('%Y-%m-%d %H:%M')
-    struct_time = time.strptime(time_str, '%Y-%m-%d %H:%M')
+    time_str = time_data.strftime('%Y/%m/%d %H:%M')
+    struct_time = time.strptime(time_str, '%Y/%m/%d %H:%M')
     return time_data, struct_time, time_str
 
 
@@ -477,7 +477,7 @@ class Data:
             input()
             raise ValueError
 
-    def __setitem__(self, key: str, value: Data_value_type):
+    def __setitem__(self, key: str | int, value: Data_value_type):
         if isinstance(key, str) and key.lower() == 'staff':
             self.dict_['staff'] = value
         if key in ['名次', '排名']:
@@ -522,7 +522,7 @@ def read(file_path: str,
          *,
          class_type: Type[Data_type] = Data,
          max_rank: int = -1,
-         inclusion_status: int = 0,
+         inclusion_status: int = 0, # 若等于一则所有曲子默认为确认收录状态
          required_keys: list[str] = None) -> list[Data_type]:
     data_list: list[Data_type] = []
     Data.main_flag = 0
@@ -585,7 +585,7 @@ def _read_csv(f, class_type, data_list, max_rank, required_keys, inclusion_statu
             new_data = class_type(i, 'csv', required_keys=required_keys)
             if new_data.valid:  # 避免空行
                 if inclusion_status == 1:
-                    new_data['收录'] = 1
+                    new_data['收录'] = 1 if new_data['收录'] != 0 else 0
                 data_list.append(new_data)
                 if (str(new_data['名次']) == str(max_rank)) and (max_rank != -1):
                     break

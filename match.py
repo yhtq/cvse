@@ -17,7 +17,12 @@ with open('config_match.ini') as config_file:
 # yhtq 修改
 
 
-def match(rank: int, index: int, start_time: datetime.datetime, pres_list: list[CVSE_Data.Data], prev_list: list[CVSE_Data.Data]):
+def match(rank: int,
+          index: int,
+          start_time: datetime.datetime,
+          pres_list: list[CVSE_Data.Data],
+          prev_list: list[CVSE_Data.Data],
+          inclusion_flag: int = False):
     list_long: dict[int, int] = {}
     rank_trans = {0: "C", 1: "SV", 2: "U"}
     conti_bound = config[f'continuous_ranked_time_bound_{rank_trans[rank]}']
@@ -159,6 +164,7 @@ def match(rank: int, index: int, start_time: datetime.datetime, pres_list: list[
             row_pres[header['Last Pt']] = row_prev[header['Pt']]
             row_pres.add_info(row_prev, key='staff')
             row_pres.add_info(row_prev, key='原创')
+            row_pres['收录'] = row_prev['收录']
             row_pres.add_info(row_prev, key='引擎')
             if float(row_pres[header['Last Pt']]) != 0.0:
                 row_pres[header['rate']] = (
@@ -181,6 +187,8 @@ def match(rank: int, index: int, start_time: datetime.datetime, pres_list: list[
             else:
                 row_pres[header['上次']] = '——'
                 row_pres[header['rate']] = '——'
+                if not inclusion_flag:
+                    row_pres['收录'] = '' # 在上次收录周期内但没有记录的稿件认为收录状态待定
         # 判断长期入榜
         aid = int(row_pres[header['aid']])
         if aid in list_long:

@@ -28,7 +28,7 @@ _required_keys = ['名次', 'aid', '标题', 'mid', 'up主', '投稿时间', '�
 engine = {1: 'Sharpkey', 2: 'DeepVocal', 3: 'MUTA', 4: '袅袅虚拟歌手', 5: 'AISingers', 6: 'X Studio', 7: '跨引擎',
           8: 'Vogen',
           9: 'VocalSharp'}
-flag: int = 0    # 是否完成收录
+flag: int = 0  # 是否完成收录
 # max_main = {0: 20, 1: 25}
 # max_side = {0: 80, 1: 105}
 # new_rank_number: dict[int, int] = {0: 10, 1: 8}
@@ -113,7 +113,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         col = 2
         while ws.cell(1, col - 1).value != f'#{Pres_data.index - 1}':
             col += 1
-            if col > 500:       # 我觉得CVSE应该没有哪个榜能活到五百期
+            if col > 500:  # 我觉得CVSE应该没有哪个榜能活到五百期
                 print(f'data_{rank_trans[Pres_data.rank]}.xlsx 格式错误')
                 print('按任意键退出')
                 raise ValueError
@@ -243,6 +243,11 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
     def inclusion(self, place: int, new_place: int) -> (int, int, bool):  # 收录, 参数分别为此曲排名和此曲作为新曲的排名, 返回值为下一位的排名和作为新曲的排名
         info_input_flag: bool = False
 
+        def __input(*args, **kwargs):
+            nonlocal info_input_flag
+            info_input_flag = True
+            return _input(*args, **kwargs)
+
         def staff_info_confirm(browser_flag: bool) -> None:
             nonlocal self, place, new_place, info_input_flag
             if place <= Pres_data.max_count_main and self['staff'] == '':
@@ -284,12 +289,12 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
             info_input_flag = True
             if Pres_data.rank == 0:
                 #  国产榜
-                self['引擎'] = _input("引擎为：1=SK 2=DV 3=Muta 4=袅袅 5=AiSinger 6=Xstudio 7=跨引擎 8=Vogen 9=V#\n",
-                                      lambda x: x.isdigit() and int(x) in list(range(1, 8)))
+                self['引擎'] = __input("引擎为：1=SK 2=DV 3=Muta 4=袅袅 5=AiSinger 6=Xstudio 7=跨引擎 8=Vogen 9=V#\n",
+                                       lambda x: x.isdigit() and int(x) in list(range(1, 10)))
                 self['引擎'] = engine[int(self['引擎'])]
             else:
                 self['引擎'] = rank_trans[Pres_data.rank]
-            ori = _input("1=原创 2=未授权搬运（授权搬运不用标注） 3=其他\n", lambda x: str(x) in ['1', '2', '3'])
+            ori = __input("1=原创 2=未授权搬运（授权搬运不用标注） 3=其他\n", lambda x: str(x) in ['1', '2', '3'])
             if ori == '1':
                 self['原创'] = '原创'
             else:
@@ -302,8 +307,6 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
         res2 = 0
         if self.is_new():
             self['上次'] = 'NEW'
-        if self['上次'] == '——' and with_match and flag == 0:
-            self['收录'] = ''
         hot_flag = False
         browser_flag = 0  # 是否已打开浏览器
         av = self['aid']
@@ -323,10 +326,11 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
                 return place, new_place, info_input_flag
             webbrowser.open("https://www.bilibili.com/video/av" + str(av) + '?t=' + str(video_start_time))
             browser_flag = 1
-            inclusion = _input("是否收录 y/n，默认为y\n", lambda x: x in ['y', 'n'], 'y')
+            inclusion = __input("是否收录 y/n，默认为y\n", lambda x: x in ['y', 'n'], 'y')
             if inclusion == 'n':
                 self['收录'] = 0
                 remove_list.append(self['aid'])
+                # info_input_flag = True
                 Pres_data.remove_flag = 1
                 return place, new_place, info_input_flag
             self['收录'] = 1
@@ -343,7 +347,7 @@ class Pres_data(CVSE_Data.Data):  # 添加新曲判断及收录判断
                 Pres_data.max_count_main += 1
                 Pres_data.max_count_side += 1
             if self.is_new() and max_main[Pres_data.rank] < place <= Pres_data.max_count_main:
-                Pres_data.min_new_count += 1    # 因为长期补至主榜的新曲不计入新曲榜, 这里额外增加名额
+                Pres_data.min_new_count += 1  # 因为长期补至主榜的新曲不计入新曲榜, 这里额外增加名额
             if Pres_data.rank == 0 and self['staff']:
                 temp_list: list[str] = self['staff'].split('  |  ')
                 _engine = temp_list[0]
@@ -440,7 +444,8 @@ def init() -> tuple[list[Pres_data], int, int, str]:
         flag = 1
     else:
         flag = 0
-    data_list: List[Pres_data] = CVSE_Data.read(file, class_type=Pres_data, required_keys=_required_keys, inclusion_status=flag)
+    data_list: List[Pres_data] = CVSE_Data.read(file, class_type=Pres_data, required_keys=_required_keys,
+                                                inclusion_status=flag)
     return data_list, rank, index, default_dir
 
 
@@ -550,12 +555,11 @@ prev_list: list[CVSE_Data.Data] = []
 if with_match:
     prev_list = read_last(_rank, int(_index) - 1)
     print('开始与上期数据进行匹配')
-    match.match(_rank, _index, Pres_data.start_time, pres_list, prev_list)
+    match.match(_rank, _index, Pres_data.start_time, pres_list, prev_list, inclusion_flag=flag)
     print('匹配完成')
-#print(getsizeof(pres_list), getsizeof(prev_list))
-if flag == 1:
-    load_record(pres_list, f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv')
-    load_record(pres_list, f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv')
+# print(getsizeof(pres_list), getsizeof(prev_list))
+load_record(pres_list, f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv')
+load_record(pres_list, f'{_default_dir}/{rank_trans[_rank]}_{_index}_save_backup.csv')
 if not os.path.exists(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv'):
     with open(f'{_default_dir}/{rank_trans[_rank]}_{_index}_save.csv', 'w', newline='', encoding='utf-8-sig') as f:
         f = csv.DictWriter(f, fieldnames=header)
