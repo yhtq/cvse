@@ -6,7 +6,7 @@ from functools import partial
 
 import pptx
 from PIL import Image
-from typing import List, Union, Tuple, Callable, Optional
+from typing import Union, Callable, Optional
 
 import dateutil.relativedelta
 import SongData
@@ -50,7 +50,7 @@ def load_record(file: str) -> Callable[[Callable], Callable]:
     return _load_record
 
 
-def calculate_time(_rank: int, _index: int) -> Tuple[datetime.datetime, datetime.datetime]:
+def calculate_time(_rank: int, _index: int) -> tuple[datetime.datetime, datetime.datetime]:
     if _rank == 0:  # 国产榜
         basic_time_start = datetime.datetime.strptime("2021/04/28 3:00", "%Y/%m/%d %H:%M")
         basic_time_end = datetime.datetime.strptime("2021/05/28 3:00", "%Y/%m/%d %H:%M")
@@ -124,10 +124,10 @@ ValidMember = Union[BaseValue,
                     CVSE_Data.Data,
                     CVSE_Data.Data_value_type,
                     Image.Image,
-                    List[CVSE_Data.Data_value_type],
+                    list[CVSE_Data.Data_value_type],
                     None]
 Member = Optional[ValidMember]
-TableType = List[Value]
+TableType = list[Value]
 RootType = Union[dict[str, Class], Class]
 
 
@@ -285,7 +285,7 @@ pres_dir = os.path.join(os.path.dirname(__file__))
 
 
 @load_record(os.path.join(pres_dir, 'Record/history.json'))
-def get_history_avbv(rank: int, index: int) -> Tuple[int, str]:
+def get_history_avbv(rank: int, index: int) -> tuple[int, str]:
     his_av_bv = input(f"请输入第{index}期(历史回顾)排行榜的aid/bvid，包含前缀av/BV")
     his_av, his_bv = SongData.get_av_bv(his_av_bv)
     return his_av, his_bv

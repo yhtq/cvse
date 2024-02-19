@@ -3,10 +3,9 @@ from abc import ABCMeta
 from datetime import datetime
 from functools import lru_cache, partial
 from io import BytesIO
-
+from typing import Optional, TypeVar, Callable, Literal
 import pptx
 from PIL import Image
-from typing import TypeVar, Optional, Type, Union, Callable
 import re
 
 _init_flag = False
@@ -35,7 +34,6 @@ def load_color_map() -> dict[int, tuple[str, str]]:
 # print(123)
 
 T = TypeVar('T', int, float, datetime)
-
 
 class BaseValue(metaclass=ABCMeta):
     # 基础值类，所有值类的基类
@@ -138,7 +136,7 @@ class FloatValue(BaseValue):
 
 
 @lru_cache  # 否则每次都会重新创建一个新的类
-def get_ColorValue_class(index: int, value_type: str) -> Type[BaseColor]:
+def get_ColorValue_class(index: int, value_type: str) -> type[BaseColor]:
     color_set = load_color_map()[index]
     if value_type == 'int':
         class ColorValueInt(IntValue, BaseColor):
@@ -152,11 +150,11 @@ def get_ColorValue_class(index: int, value_type: str) -> Type[BaseColor]:
         return ColorValueInt
     elif value_type == 'float':
         class ColorValueFloat(FloatValue, BaseColor):
-            def __init__(self, value, *args: str, **kwargs):
+            def __init__(self, value, *args: str, **kwargs) -> None:
                 super().__init__(value, *args, **kwargs)
                 self.color_set: tuple[str, str] = color_set
 
-            def with_color(self):
+            def with_color(self) -> Literal[True]:
                 return True
 
         return ColorValueFloat
@@ -183,13 +181,13 @@ class Time(BaseValue):
 
 
 class PicturePlacer(BaseValue):
-    def __init__(self, pic: Union[Image.Image, str], *args, **kwargs):
+    def __init__(self, pic: Image.Image | str, *args: list[str], **kwargs):
         super().__init__()
         self.x: float
         self.y: float
         self.width: float
         self.height: float
-        self.pic_file: Union[str, BytesIO]
+        self.pic_file: str | BytesIO
         if len(args) != 2:
             raise ValueError('Invalid picture args')
         try:

@@ -3,7 +3,7 @@ import functools
 import os
 import re
 from datetime import datetime
-from typing import Callable, Optional, TypeVar, Tuple, Type
+from typing import Callable, Optional, TypeVar
 import downloader
 import CVSE_Data
 from CVSE_Data import rank_trans, _input
@@ -64,7 +64,7 @@ def load_data(index: int, rank: int) -> RankData.RankData:
         raise FileNotFoundError
 
 
-def get_data(index: int, rank: int) -> Tuple[dict[str, Class], dict[str, TableType]]:
+def get_data(index: int, rank: int) -> tuple[dict[str, Class], dict[str, TableType]]:
     # 读取近十期数据,dict的key为期数，value为Rank_data
     data_dict: dict[int, RankData.RankData] = {}
     last_dur = min(10, index)  # 读取这么多期过往数据
@@ -118,7 +118,7 @@ def data_lookup(root: RootType, *args: str) -> ValidMember:
             raise ValueError
 
 
-def type_split(name: str) -> tuple[str, Optional[Type[Value]]]:
+def type_split(name: str) -> tuple[str, Optional[type[Value]]]:
     # 由输入的字符串（类型名），返回解析到的类型名和类型类
     if any(i in name for i in ['int', 'float']):
         for valuetype in ['int', 'float']:
@@ -147,7 +147,7 @@ def type_split(name: str) -> tuple[str, Optional[Type[Value]]]:
 
 
 def format_func(arg: str, root: RootType) \
-        -> Tuple[Value, Optional[Callable[[RankData.Shapes], None]]]:
+        -> tuple[Value, Optional[Callable[[RankData.Shapes], None]]]:
     # 格式化成功返回相应对象，否则返回原字符串,第二个参数是对ppt的操作，带一个参数slide类
     if arg in alias_dict:
         name = alias_dict[arg.strip()]
@@ -275,7 +275,7 @@ def paragraph_process(func: Callable[[str, Run], str], paragraph):
             # run.text = re.sub(r'\{(.+)}', func, run.text)
 
 
-def init() -> Tuple[int, int, dict[str, Class], dict[str, TableType]]:
+def init() -> tuple[int, int, dict[str, Class], dict[str, TableType]]:
     _rank = input("请输入国产榜/SV/utau，1=国产榜，2=SV刊，3=UTAU刊\n")
     while _rank not in ['1', '2']:
         print('输入错误')
